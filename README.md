@@ -1,249 +1,311 @@
 # 🇮🇷 TSE Robo-Advisor — AI-Driven Quant Research & Portfolio Pipeline
 
-> An end-to-end machine learning pipeline for signal research, statistically-validated backtesting, and live portfolio construction on the Tehran Stock Exchange (TSE) — built with a diagnostics-first philosophy: every signal is challenged before it's trusted.
+<div align="center">
 
----
+### An end-to-end ML robo-advisor for the Tehran Stock Exchange — built around one rule:<br>never trust a Sharpe ratio you haven't tried to disprove.
 
-## 📑 Table of Contents
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-REST%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-ML%20core-9ACD32)](https://lightgbm.readthedocs.io/)
+[![JavaScript](https://img.shields.io/badge/dashboard-vanilla%20JS%2C%20zero%20build-F7DF1E?logo=javascript&logoColor=black)](#-tech-stack)
+[![Status](https://img.shields.io/badge/status-research%20%2F%20not%20production--ready-orange)](#-the-honest-scorecard)
+[![DSR](https://img.shields.io/badge/Deflated%20Sharpe%20Ratio-0.315%20(NO--GO)-red)](#-the-honest-scorecard)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#-contributing)
 
-- [✨ Key Features](#-key-features)
-- [🛠️ Tech Stack](#-tech-stack)
-- [🏗️ Architecture / Pipeline Workflow](#-architecture--pipeline-workflow)
-- [🎥 Demo](#-demo)
-- [⚙️ Installation & Setup](#-installation--setup)
-- [🚀 Usage](#-usage)
-- [📊 Current Status & Research Findings](#-current-status--research-findings)
-- [🗺️ Future Roadmap / Enhancements](#-future-roadmap--enhancements)
-- [📁 Project Structure](#-project-structure)
+<br>
 
----
+![Dashboard Preview](docs/assets/dashboard-preview.gif)
+<sub>📸 placeholder — drop a real screen recording of the dashboard at <code>docs/assets/dashboard-preview.gif</code> (bilingual toggle + dark/light + live pipeline run make for a great 10s loop)</sub>
+
+</div>
+
+<br>
+
+> [!WARNING]
+> **This is not financial advice, and the model says so itself.** The latest full backtest reports a **Deflated Sharpe Ratio of 0.315** — below the 0.5 threshold, meaning the strategy's edge is **not statistically distinguishable from luck**. Net stock-picking alpha vs. an equal-weight basket is a genuine **+31.5%**, but macro/dollar timing dragged total returns well behind simply holding USD over the test window. Full numbers in [The Honest Scorecard](#-the-honest-scorecard) below. This project exists to demonstrate rigorous ML engineering, not to manage your money.
+
+<br>
+
+## 🌟 Overview
+
+Most "AI stock picker" repos show you an equity curve, a raw Sharpe ratio, and stop there. That's not enough — a backtest with a good-looking curve can just as easily be the product of trying enough configs until one got lucky (Selection Bias), or a feature that's secretly encoding *which ticker* rather than *which signal*.
+
+**Signal Desk** is a full pipeline — data ingestion → feature engineering → LightGBM training → backtesting → live inference → portfolio optimization → a live dashboard — purpose-built for a market that punishes naive ML: the **Tehran Stock Exchange (TSE)**. Iranian equities have quirks most trading-bot tutorials never see:
+
+| Challenge | Why it breaks naive models |
+|---|---|
+| 📈 **Non-stationary nominal prices** | A decade of high inflation means raw price levels are meaningless across time — every level-based feature is secretly a "which year is it" detector. |
+| 💰 **Capital increases** | Can crater a ticker's nominal price >30% overnight with zero economic loss — indistinguishable from a crash unless explicitly detected and adjusted for. |
+| ⛔ **Trading halts** | A stock can go quiet for months and still generate a "strong buy" if you don't check for staleness. |
+| 💵 **Dollar dependency** | Most industrials are priced against USD/IRR more than against their own fundamentals — so *relative* performance vs. the dollar matters more than absolute price. |
+| 🌍 **Geopolitical risk** | Regional events can move the whole market in hours — a signal no price-only dataset captures. |
+
+Rather than tune around these until the backtest looks nice, this project builds **diagnostic instruments first** — mutual information, regime-shift, ticker-leakage, and cross-sectional variance decomposition tests — and only trusts a feature once it survives all four. The same discipline was later applied to the deployment layer: see [🐛 Bugs We Actually Found](#-bugs-we-actually-found-not-hypothetical-ones).
+
+<br>
+
+## 📊 The Honest Scorecard
+
+*From the latest full pipeline run — 8 tickers, 1395–1405 (≈10 years), 15,489 labeled rows.*
+
+| Metric | Value | Read |
+|---|---|---|
+| **Deflated Sharpe Ratio** | `0.315` | 🔴 **NO-GO** — below the 0.5 "distinguishable from chance" threshold |
+| Alpha vs. equal-weight basket | `+31.48%` | 🟢 Genuine net stock-picking skill |
+| Alpha vs. USD/IRR (buy-and-hold) | `−359.91%` | 🔴 Macro/dollar timing lost badly this window |
+| Total return (strategy) | `+131.68%` | vs. `+491.59%` just holding dollars |
+| Max drawdown | `−31.29%` | — |
+| Sharpe / Sortino / Calmar | `−0.07 / −0.11 / 4.21` | — |
+| Walk-forward fold accuracy | `49.2% – 54.0%` | Baseline (always predict majority class) is `52.4%` |
+
+> [!NOTE]
+> Why publish a negative headline result? Because the alternative — reporting only the raw Sharpe or the flattering alpha number — is exactly the kind of selective reporting the Deflated Sharpe Ratio exists to catch. The [full technical report](docs/robo_advisor_report.docx) documents this in detail, including *why* the model is currently closer to a market-timing tool than a stock-picker (see the cross-sectional variance decomposition findings).
+
+<br>
 
 ## ✨ Key Features
 
-- **Automated ETL pipeline** — retry-safe daily ingestion of OHLC price data for 8 TSE tickers plus the USD/IRR free-market ("Dollar") exchange rate, persisted to SQLite with optimized indexes and exported to Excel for audit.
-- **40+ engineered features per ticker** — RSI, MACD, ATR, moving-average distances, rolling volatility, dollar-correlation, beta proxy, capital-increase event features, and macro regime flags, with forward-looking 60-day return labels stored as Parquet.
-- **Purged K-Fold LightGBM training** — cross-validation designed to prevent lookahead bias and information leakage across time-ordered folds, with per-fold accuracy/F1/best-iteration reporting.
-- **Built-in signal diagnostics suite** (`diagnose_signal.py`) — a hard gate *before* investing in more complex architectures (e.g. LSTM+Attention):
-  - Mutual Information ranking (model-free signal strength)
-  - Regime-shift / non-stationarity testing (Q1 vs Q4 distribution drift)
-  - Ticker-identity leakage testing (is a feature just a hidden stock ID?)
-  - Cross-sectional variance decomposition — separates **macro/day-level** signal from **stock-specific** (idiosyncratic) signal
-- **Statistically rigorous backtesting** — Sharpe, Sortino, Calmar, and **Deflated Sharpe Ratio** (corrects for multiple-testing bias), benchmarked against both a USD-holding strategy and a naive equal-weighted stock basket.
-- **Train/serve skew elimination** — the exact same diagnostic feature-correction function is shared across training, backtesting, and live inference, closing a bug where the live service silently zero-filled its most important feature.
-- **Stale/halted-ticker protection** — live predictions are automatically suppressed for suspended tickers (caught a real incident where a 4-month-halted stock still received a "strong buy" signal).
-- **Portfolio optimizer** — Sharpe-maximizing SLSQP allocation with correlation-based diversification filtering (drops pairs with `corr > 0.85`), single-position caps, batched SQL (N+1 query elimination — ~100x speedup for large ticker universes), and a **fail-open geopolitical risk brake** that throttles equity exposure during high-instability periods.
-- **Atomic dashboard export** — JSON files are written to a temp file and renamed, so the React/Vite frontend never reads a half-written file.
-- **Jalali (Persian) calendar aware** end-to-end, from raw data ingestion through the dashboard.
+- 🧠 **Purged walk-forward CV with embargo** — no look-ahead leakage across the 60-day label horizon, verified with an explicit embargo window, not just a random split.
+- 🔬 **Four independent signal-validity diagnostics** — Mutual Information, Regime-Shift, Ticker-Leakage, and Cross-Sectional Variance Decomposition all run *before* a feature is trusted, not after a backtest looks good.
+- 📉 **Deflated Sharpe Ratio, not raw Sharpe** — the strategy evaluation layer explicitly corrects for Selection Bias and non-normal returns (Bailey & López de Prado, 2014).
+- 🏗️ **Iran-market-specific plumbing** — automatic capital-increase detection & share adjustment, trading-halt/staleness filtering, dollar-relative feature normalization.
+- 🌍 **Independent geopolitical risk brake** — a live Country Instability Index (via [WorldMonitor](https://ir.worldmonitor.app)) throttles equity allocation (up to 95% → 20%) completely outside the model's own predictions.
+- ⚡ **Zero-build dashboard** — FastAPI serves a single-file HTML/CSS/vanilla-JS dashboard from the same origin. No npm, no bundler, no CORS headaches.
+- 🌗🌐 **Bilingual, bi-theme UI** — Persian/English with automatic RTL/LTR switching via CSS logical properties, dark/light themes, both persisted. Charts and numeric scales deliberately **stay LTR** even in RTL mode — mirroring a trend line would misrepresent the data.
+- 🛡️ **Fail-open vs. fail-fast, on purpose** — non-critical signals (geopolitical data) degrade to neutral values silently; critical paths (USD/IRR rate, stationary features) hard-stop with `RuntimeError` rather than silently poisoning training data.
+- 🐛 **14 real bugs found and documented** — not a hypothetical "lessons learned" section. See below.
 
----
+<br>
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    subgraph Ingestion
+        A[data_pipeline.py] --> DB[(tsetmc_market_data.db)]
+        Z[dollar_data_ingestion.py] -.USD/IRR.-> DB
+        G[geopolitical_features.py] -.CII, fail-open.-> DB
+    end
+
+    subgraph "Feature & Train"
+        DB --> FE[feature_engineering.py]
+        FE --> CSV[(ai_features_outputs/*.csv)]
+        CSV --> TM[train_model.py]
+        TM --> MODEL[(lgb_robo_advisor.txt)]
+    end
+
+    subgraph "Evaluate & Decide"
+        MODEL --> BT[backtester.py]
+        MODEL --> LP[live_predictor.py]
+        MODEL --> DS[diagnose_signal.py]
+        LP --> PO[portfolio_optimizer.py]
+        BT --> OUT[(excel_outputs/*)]
+        PO --> OUT
+    end
+
+    subgraph "Serve"
+        OUT --> API[app.py — FastAPI]
+        MODEL -.feature importance.-> API
+        API --> WEB[index.html — dashboard]
+    end
+```
+
+<details>
+<summary>📄 <b>REST API surface</b> (7 endpoints, click to expand)</summary>
+<br>
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/rankings` | `GET` | Live symbol rankings — 3-class probabilities, alpha score |
+| `/api/equity-curve` | `GET` | Backtest equity curve vs. USD/IRR benchmark |
+| `/api/backtest-metrics` | `GET` | Full backtest metrics, including Deflated Sharpe Ratio |
+| `/api/model-health` | `GET` | Per-fold CV metrics + feature importance (recomputed live from the trained model — never persisted by `train_model.py`, so this endpoint is the single source of truth) |
+| `/api/portfolio/optimize` | `POST` | Live portfolio allocation for a given capital / risk appetite / horizon |
+| `/api/pipeline/run` | `POST` | Runs `main.py` as a subprocess (⚠️ see [Security note](#-security-note)) |
+| `/api/health` | `GET` | Output-file availability check |
+
+</details>
+
+<br>
 
 ## 🛠️ Tech Stack
 
-| Category | Tools |
+| Layer | Tools |
 |---|---|
-| **Core Language** | Python 3.11 |
-| **ML / Modeling** | LightGBM, scikit-learn (Mutual Information, Decision Trees, cross-validation) |
-| **Optimization** | SciPy (`SLSQP` mean-variance / Sharpe-maximizing optimizer) |
-| **Data Processing** | pandas, NumPy |
-| **Storage** | SQLite (`tsetmc_market_data.db`, `macro_data.db`, `geo_signals.db`), Parquet (feature store), CSV |
-| **Reporting** | openpyxl / pandas Excel export |
-| **Frontend Integration** | Atomic JSON export → React + Vite dashboard (`RoboAdvisorDashboard.jsx`) |
-| **External Signal** | Local WorldMonitor geopolitical Crisis Instability Index (CII) integration, fail-open design |
+| **Language** | ![Python](https://img.shields.io/badge/-Python%203.11+-3776AB?logo=python&logoColor=white) |
+| **ML / Modeling** | LightGBM · scikit-learn · SciPy (`optimize`, `stats`) |
+| **Data** | pandas · numpy · SQLite (WAL mode) |
+| **Market Data** | [`pytse_client`](https://github.com/Glyphack/pytse-client) (TSE) · GitHub-hosted USD/IRR dataset · [WorldMonitor SDK](https://ir.worldmonitor.app) (optional) |
+| **Backend / API** | ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?logo=fastapi&logoColor=white) · uvicorn · Pydantic |
+| **Frontend** | HTML5 · CSS3 (Logical Properties, no framework) · Vanilla JS (ES6+) · Chart.js (bundled locally — no CDN dependency) |
+| **Artifacts** | Excel (`openpyxl`) · JSON |
+| **DevOps** | Local venv today — containerization is on the [roadmap](#-roadmap) |
 
----
+<br>
 
-## 🏗️ Architecture / Pipeline Workflow
+## 🚀 Getting Started
 
-### Visual Diagram
+### Prerequisites
+- Python **3.11+**
+- Internet access (for TSE price data and the USD/IRR dataset)
+- *(optional)* a [WorldMonitor](https://ir.worldmonitor.app/pro) API key for live geopolitical signal — the pipeline runs fine without one, the geo features just stay neutral
 
-![TSE Robo-Advisor Architecture Diagram](./architecture-diagram.svg)
+### Installation
 
-### Detailed Dataflow (Text)
-
-```
-┌─────────────────────┐     ┌──────────────────────┐
-│ dollar_data_ingestion│     │   data_pipeline.py    │
-│  (USD/IRR history)   │     │  (8 TSE tickers OHLC) │
-└──────────┬───────────┘     └───────────┬───────────┘
-           │                             │
-           └────────────┬────────────────┘
-                         ▼
-              SQLite (macro_data.db,
-              tsetmc_market_data.db)
-                         │
-                         ▼
-              ┌─────────────────────────┐
-              │  feature_engineering.py │  → per-ticker Parquet
-              │  (40+ features, 60d     │    feature store
-              │   forward labels)       │
-              └────────────┬─────────────┘
-                            ▼
-              ┌─────────────────────────┐
-              │     train_model.py       │  Purged K-Fold LightGBM
-              │  (diagnostic corrections)│  → lgb_robo_advisor.txt
-              └────────────┬─────────────┘
-                            │
-              ┌─────────────┴─────────────┐
-              ▼                            ▼
-   ┌────────────────────┐      ┌────────────────────────┐
-   │ diagnose_signal.py  │      │    live_predictor.py    │
-   │ MI / regime-shift /  │      │  + geopolitical_features│
-   │ leakage / decomp.    │      │  (stale-ticker filter)  │
-   └────────────────────┘      └────────────┬─────────────┘
-                                              ▼
-                                 ┌─────────────────────────┐
-                                 │ portfolio_optimizer.py   │
-                                 │ SLSQP Sharpe-max +        │
-                                 │ correlation filter +      │
-                                 │ geopolitical risk brake   │
-                                 └────────────┬─────────────┘
-                                              ▼
-                                 ┌─────────────────────────┐
-                                 │   dashboard_export.py    │
-                                 │  atomic JSON → frontend  │
-                                 └─────────────────────────┘
-
-   (run independently, not part of main.py)
-                 ┌─────────────────────────┐
-                 │      backtester.py       │
-                 │ Sharpe/Sortino/Calmar/    │
-                 │ Deflated Sharpe vs USD &  │
-                 │ equal-weight benchmarks   │
-                 └─────────────────────────┘
-```
-
----
-
-## 🎥 Demo
-
-> 📌 **Add your project demo here.** A short screen recording or GIF of the live dashboard is the single highest-impact addition you can make to this README — it turns "trust me, it works" into "watch it work."
-
-```markdown
-![Dashboard Demo](./docs/demo.gif)
-```
-
-<!--
-Suggested capture checklist:
-  1. Live rankings table (from live_rankings.json) — sortable by Alpha Score
-  2. Equity curve vs. USD and equal-weight benchmarks (equity_curve.json)
-  3. Portfolio allocation pie chart + KPI boxes (portfolio.json)
-  4. A terminal recording of `python main.py` running the full 5-stage pipeline end-to-end
-  5. `diagnose_signal.py` output — showing the MI / regime-shift / leakage tables
--->
-
----
-
-## ⚙️ Installation & Setup
+> [!IMPORTANT]
+> Use **one shared virtual environment** for the pipeline *and* the backend. `app.py` imports `pandas`/`lightgbm` directly, and `/api/pipeline/run` executes `main.py` with whatever Python started `uvicorn` — a separate, lighter backend-only venv will throw `ModuleNotFoundError` the moment something real gets called.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/<your-username>/tse-robo-advisor.git
-cd tse-robo-advisor
+git clone https://github.com/your-username/signal-desk.git
+cd signal-desk
 
-# 2. Create and activate a virtual environment
-python3.11 -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate        # Windows (PowerShell): .venv\Scripts\Activate.ps1
 
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. (Optional) Clone the local WorldMonitor geopolitical signal source
-#    Pipeline runs fine without this — the geopolitical feature/brake
-#    fail-opens to neutral values if the folder is missing.
-git clone https://github.com/<worldmonitor-fork>/worldmonitor.git ./worldmonitor
-
-# 5. (Optional) Point the pipeline at custom data paths
-export TSE_DB_PATH="./tsetmc_market_data.db"
-export MACRO_DB_PATH="./macro_data.db"
+pip install -r requirements.txt -r backend/requirements_backend.txt
 ```
 
-`requirements.txt` (core packages):
-```
-pandas
-numpy
-scikit-learn
-lightgbm
-scipy
-openpyxl
-requests
-```
-
----
-
-## 🚀 Usage
-
-Run the full 5-stage pipeline (ingestion → features → training → live prediction → portfolio optimization):
+### Configuration
 
 ```bash
+# Optional — enables the live geopolitical risk brake instead of neutral placeholders
+export WORLDMONITOR_API_KEY="wm_..."          # PowerShell: $env:WORLDMONITOR_API_KEY="wm_..."
+```
+
+### Run
+
+```bash
+# 1. Pull USD/IRR exchange-rate history (writes dollar_rates.csv + macro_data.db)
+python dollar_data_ingestion.py
+
+# 2. Run the full pipeline: ingest → features → train → predict → optimize
 python main.py
+
+# 3. Launch the API + dashboard (served from the same origin, no CORS setup needed)
+cd backend
+export PROJECT_ROOT="$(pwd)/.."               # PowerShell: $env:PROJECT_ROOT = (Resolve-Path "..").Path
+uvicorn app:app --reload --port 8000
 ```
 
-Run individual stages independently:
+Open **http://localhost:8000** — that's the dashboard, served directly by FastAPI.
 
+> [!TIP]
+> Always set `PROJECT_ROOT` as an **absolute path**. A relative `..` resolves against the process's current working directory, not the file's location — reorganize your folders and it silently points at the wrong place. This bit us for real; see bug #10 below.
+
+<br>
+
+## 💻 Usage
+
+**Pull live rankings:**
 ```bash
-# Signal diagnostics — run this BEFORE trusting any model output
-python diagnose_signal.py
-
-# Historical backtest against USD and equal-weight benchmarks
-python backtester.py
-
-# Refresh the frontend dashboard JSON only
-python -c "from dashboard_export import write_rankings_json; ..."
+curl http://localhost:8000/api/rankings
 ```
 
-Programmatic portfolio allocation example:
+**Request a live portfolio allocation:**
+```bash
+curl -X POST http://localhost:8000/api/portfolio/optimize \
+  -H "Content-Type: application/json" \
+  -d '{"capital": 50000000, "risk_appetite": "medium", "time_horizon": "mid"}'
+```
+```json
+{
+  "portfolio_weights": { "شپنا": 0.227, "فملی": 0.195, "وبملت": 0.227, "صندوق درآمد ثابت": 0.35 },
+  "metrics": { "total_return": 1.3168, "sharpe_ratio": -0.07, "max_drawdown": -0.3129, "risk_exposure": 0.65 }
+}
+```
 
+**...or from Python:**
 ```python
-from portfolio_optimizer import optimize_portfolio
+import requests
 
-allocation = optimize_portfolio(
-    capital=50_000_000,      # Toman
-    risk_appetite="medium",  # 'low' | 'medium' | 'high'
-    time_horizon="mid",      # 'short' | 'mid' | 'long'
-)
+r = requests.post("http://localhost:8000/api/portfolio/optimize", json={
+    "capital": 50_000_000,
+    "risk_appetite": "medium",
+    "time_horizon": "mid",
+})
+print(r.json()["portfolio_weights"])
 ```
 
----
+**Trigger a full pipeline re-run from the dashboard itself** — the "▶ Run full pipeline" button `POST`s to `/api/pipeline/run` and streams progress through the five stages live.
 
-## 📊 Current Status & Research Findings
+<br>
 
-This project treats **model validation as a first-class citizen**, not an afterthought. The diagnostics suite currently reports:
+## 🐛 Bugs We Actually Found (not hypothetical ones)
 
-- **Purged K-Fold accuracy:** 35–60% across folds, with `best_iteration` collapsing to 1 in 3 of 5 folds — a signal the current feature set is not yet consistently generalizable.
-- **Deflated Sharpe Ratio:** flagged `NO-GO` in the latest backtest run — current out-of-sample performance is not yet statistically distinguishable from a random strategy at this sample size.
-- **Cross-sectional decomposition:** ~76% of return variance is explained by common, day-level (macro/USD-regime) movement, vs. ~24% idiosyncratic (stock-specific) variance — meaning the model currently behaves more like a **dollar-regime timing detector** than a pure stock-picker.
-- **Backtest alpha:** negative vs. a simple USD-holding benchmark, but strongly positive (+200%) vs. a naive equal-weighted stock basket — suggesting genuine stock-selection skill exists but is currently dominated by unfavorable macro-timing exposure.
+A running, honest log — not a sanitized "lessons learned" slide. A few favorites:
 
-These findings actively drive the roadmap below rather than being hidden behind headline return numbers.
+| # | Bug | Root cause | Fix |
+|---|---|---|---|
+| 1 | **Train/serve skew** | `live_predictor.py` never called the same feature-correction function `train_model.py` and `backtester.py` did — the model's #1 most important feature was silently `0.0` on every live prediction | Single source of truth: all three now `import` the same function from `train_model.py` |
+| 2 | **Strong-buy on a dead ticker** | A stock halted for 4+ months still generated a "strong buy" signal | Staleness filter comparing against the freshest date across the whole live batch |
+| 3 | **CDN dependency broke chart rendering** | Chart.js loaded from a public CDN; on the user's real network, that request just never completed — `Chart is not defined`, despite the API and data being perfectly healthy | Bundled the library locally; also fixed a related bug where the render failure was mislabeled as a *fetch* failure and silently discarded good data |
+| 4 | **venv/PATH collision** | With no venv activated, `uvicorn` silently ran under a completely unrelated tool's Python found earlier on `PATH` — `ModuleNotFoundError: pandas`, with zero connection to the actual code | Consolidated to one project venv; always verify the `(.venv)` prompt prefix before running anything |
+| 5 | **DSR computed but never persisted** | `backtester.py` logged the Deflated Sharpe Ratio and threw it away — no endpoint or dashboard panel could ever access the single most important strategy-evaluation number in the project | Persisted `deflated_sharpe_ratio`/`n_obs` to `backtest_metrics.json`; added a dedicated `/api/backtest-metrics` endpoint |
 
-> ⚠️ **Disclaimer:** This is a research and educational project. It does not currently demonstrate statistically validated trading alpha and should not be used to make real investment decisions.
+<details>
+<summary>See all 14 (click to expand)</summary>
+<br>
 
----
+**Model / pipeline layer:** unit mismatch in the optimizer's annualized expected return (optimizer was effectively ignoring the alpha ranking entirely) · capital increases straddling two rebalance dates going undetected in the backtester · relative-path `FileNotFoundError` when called from a different working directory · `pytse_client` index/date column ambiguity across versions · a fully incorrect architectural assumption about the WorldMonitor repo (`No module named 'src.parser'` — the assumed local-import design never existed) · a dead upstream USD/IRR API returning `404`.
 
-## 🗺️ Future Roadmap / Enhancements
+**Deployment layer:** API request/response schema drift between frontend and backend (`422` on every optimize call) · three overlapping edits of the dashboard script left as dead code, causing a hard `SyntaxError` and duplicate event listeners · `PROJECT_ROOT` resolved against the wrong folder depth after a repo restructure · `StaticFiles(html=True)` silently requiring the file be named exactly `index.html`, not `dashboard.html`.
 
-- Defer LSTM+Attention architecture work until `diagnose_signal.py`'s Definition-of-Done is met (best-iteration reliably >100, Deflated Sharpe clears NO-GO, non-zero F1 on minority classes).
-- Explicitly decompose the "macro/dollar regime" signal into a separate hedging/timing overlay, isolated from the stock-ranking model, to unlock the idiosyncratic alpha shown in the equal-weight benchmark comparison.
-- Re-evaluate the 60-day label horizon — potentially too long for a regime-heavy, high-volatility market like TSE.
-- Replace the currently broken WorldMonitor geopolitical integration (silently fails on `src.parser` import) with a maintained, versioned data source.
-- Expand backtesting to rolling-origin / walk-forward windows to increase the statistical power of the Deflated Sharpe estimate (`n_obs=57` is currently small).
-- Containerize the pipeline (Docker) and add CI (GitHub Actions) for scheduled nightly runs and regression testing on the diagnostics suite.
+Full write-ups (symptom → root cause → fix) are in the [technical report](docs/robo_advisor_report.docx), §7.2.
 
----
+</details>
 
-## 📁 Project Structure
+<br>
 
-```
-.
-├── data_pipeline.py            # Raw price ingestion & cleaning
-├── dollar_data_ingestion.py    # USD/IRR historical rate sync
-├── feature_engineering.py      # Feature + label construction
-├── train_model.py              # Purged K-Fold LightGBM training
-├── diagnose_signal.py          # MI / regime-shift / leakage / decomposition
-├── live_predictor.py           # Live inference + stale-ticker filtering
-├── geopolitical_features.py    # WorldMonitor CII integration (fail-open)
-├── portfolio_optimizer.py      # SLSQP allocation + risk brake
-├── backtester.py                # Statistically-aware backtesting
-├── dashboard_export.py         # Atomic JSON export for frontend
-└── main.py                      # Orchestrates the 5-stage pipeline
-```
+## 🔒 Security Note
+
+`POST /api/pipeline/run` executes `main.py` as a subprocess with **no authentication**. This is intentional for local development (`127.0.0.1` only) — it is **not safe to expose** on `--host 0.0.0.0` or behind a public tunnel as-is. Auth hardening for this endpoint is on the roadmap.
+
+<br>
+
+## 🗺️ Roadmap
+
+**Shipped**
+- [x] Purged walk-forward CV with embargo
+- [x] 4-test feature-validity diagnostic suite
+- [x] Deflated Sharpe Ratio strategy evaluation
+- [x] Correlation-filtered portfolio optimizer with geopolitical risk brake
+- [x] FastAPI REST layer, same-origin static dashboard
+- [x] Bilingual (FA/EN) + dark/light dashboard, CDN-free
+- [x] `/api/pipeline/run` — trigger the full pipeline from the browser
+
+**Next**
+- [ ] Company-level fundamental & industry features (P/E, margins, export exposure) — the biggest lever identified for shifting the model from market-timing toward true stock-picking
+- [ ] Cross-sectional daily rank-based labeling, replacing the absolute-threshold label
+- [ ] Re-run the full diagnostic suite against an LSTM+Attention architecture *before* committing to it
+- [ ] Wider, more industry-diverse ticker universe
+- [ ] Automated, versioned tracking of `num_strategy_trials` for long-term DSR integrity
+- [ ] Real geopolitical signal activation (currently placeholder pending an API key)
+- [ ] Auth on `/api/pipeline/run`
+- [ ] One-command Docker Compose setup
+
+<br>
+
+## 🤝 Contributing
+
+Issues and PRs are genuinely welcome — especially around the open items above. If you're picking this up:
+
+1. Fork it, branch off `main`
+2. Keep the diagnostic discipline: a new feature isn't "done" until it's survived the MI / regime-shift / ticker-leakage / cross-sectional tests in `diagnose_signal.py`
+3. If you find a real bug, add it to the table above in the same `symptom → root cause → fix` format — that log is half the point of this repo
+4. Open a PR with what you found and why the fix is correct, not just that it "works now"
+
+<br>
+
+## 📄 License
+
+[MIT](LICENSE) — a permissive default for a research/portfolio project. Swap it for whatever fits your use case.
+
+## 🙏 Author
+
+**Eina Shabani** — B.Sc. Computer Science, Islamic Azad University, Tehran West Branch<br>
+Full academic writeup (methodology, math, and every diagnostic result): [`docs/robo_advisor_report.docx`](docs/robo_advisor_report.docx)
+
+<div align="center">
+<sub>Built with an unreasonable amount of respect for the difference between a real signal and a lucky backtest.</sub>
+</div>

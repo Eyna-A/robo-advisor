@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robo-Advisor · TSE Signal Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Vazirmatn:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="chart.min.js"></script>
+<style>
+/* =========================================================================
+   TOKENS
+   Architecture: brand accents + a small set of semantic surface/text tokens
+   are the only things redefined per theme (:root vs [data-theme="light"]).
+   Every component below consumes derived aliases (--surface-2, --ink-70…)
+   that are themselves built from those tokens with color-mix(), so the
+   whole file re-themes without touching a single component rule.
+   ========================================================================= */
+:root{
+  /* brand palette — dark mode values */
+  --delft-blue:#2B4C7E;
+  --earth-yellow:#D9A05B;
+  --persian-orange:#E06D53;
+  --taupe-gray:#8A8D91;
+  --licorice:#251211;
+
+  /* semantic tokens — dark mode */
+  --bg-primary:#121417;
+  --bg-card:#1C2026;
+  --text-primary:#E2E8F0;
+  --text-secondary:#8A8D91;
+  --border-color:#2D333D;
+
+  /* atmosphere glows behind the hero — themed separately, see below */
+  --glow-1: color-mix(in srgb, var(--delft-blue) 35%, transparent);
+  --glow-2: color-mix(in srgb, var(--persian-orange) 10%, transparent);
+
+  /* derived internal aliases used throughout the file */
+  --bg: var(--bg-primary);
+  --surface: var(--bg-card);
+  --surface-2: color-mix(in srgb, var(--delft-blue) 18%, var(--bg-card) 82%);
+  --surface-3: color-mix(in srgb, var(--delft-blue) 38%, var(--bg-card) 62%);
+  --line: var(--border-color);
+  --line-soft: color-mix(in srgb, var(--border-color) 55%, transparent);
+  --ink: var(--text-primary);
+  --ink-70: color-mix(in srgb, var(--text-primary) 62%, var(--text-secondary) 38%);
+  --ink-45: var(--text-secondary);
+
+  --up: var(--earth-yellow);
+  --down: var(--delft-blue);
+  --neutral: var(--taupe-gray);
+  --warn: var(--persian-orange);
+
+  --radius:14px; --radius-sm:9px;
+  --font-display:'Space Grotesk', 'Vazirmatn', sans-serif;
+  --font-body:'IBM Plex Sans', 'Vazirmatn', sans-serif;
+  --font-mono:'IBM Plex Mono', 'Vazirmatn', monospace;
+  --font-fa:'Vazirmatn', 'IBM Plex Sans', sans-serif;
+}
+
+[data-theme="light"]{
+  --delft-blue:#1D3557;
+  --earth-yellow:#C58B3A;
+  --persian-orange:#D05338;
+  --taupe-gray:#6C757D;
+  /* --licorice intentionally NOT overridden: it's used only as a fixed
+     high-contrast ink on top of bright accent chips/badges, and reads
+     fine against those accents in either theme. */
+
+  --bg-primary:#F4F6F8;
+  --bg-card:#FFFFFF;
+  --text-primary:#1A202C;
+  --text-secondary:#5A6065;
+  --border-color:#E2E8F0;
+
+  --glow-1: color-mix(in srgb, var(--delft-blue) 6%, transparent);
+  --glow-2: color-mix(in srgb, var(--persian-orange) 5%, transparent);
+}
+
+*{ box-sizing:border-box; }
+html{ color-scheme: dark; }
+html[data-theme="light"]{ color-scheme: light; }
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse 1200px 600px at 12% -10%, var(--glow-1), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 100% 0%, var(--glow-2), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  min-height:100vh;
+  transition: background-color .25s ease, color .25s ease;
+}
+.fa{ font-family: var(--font-fa); direction: rtl; unicode-bidi: isolate; }
+h1,h2,h3{ font-family: var(--font-display); margin:0; letter-spacing:-.01em; }
+.mono{ font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+a{ color:inherit; }
+button{ font-family:inherit; }
+:focus-visible{ outline:2px solid var(--earth-yellow); outline-offset:2px; border-radius:4px; }
+input, select{ text-align:start; }
+
+body, .panel, .kpi-card, .fold-card, .opt-kpi, .topbar, input, select, button, .marquee-item{
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+}
+
+/* numeric/technical data always renders as LTR digits, isolated from the
+   surrounding paragraph direction — standard convention in RTL financial
+   UIs (numerals read left-to-right even inside Persian/Arabic sentences) */
+.mono, .kpi-value, .alpha-val, .dsr-stat b, .opt-kpi .v, .feat-val,
+.fold-card .fval, .weight-row .pct, .marquee-item .price, .marquee-item .chg{
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* faint terminal grid texture */
+.grid-texture{
+  position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+  background-image:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%);
+}
+
+/* =========================================================================
+   DIRECTIONALITY
+   Grid/flex placement, table column order, and text-align:start/end all
+   flip automatically once html[dir] changes — that's native CSS logical
+   layout, not something we need to hand-roll per component. The two
+   exceptions below are DELIBERATE non-mirrors: data visualizations
+   (gradient scale labels) stay left→right regardless of reading direction,
+   matching how financial UIs (Bloomberg, TradingView) keep charts LTR
+   even in RTL locales, since flipping a scale would misrepresent it.
+   ========================================================================= */
+html[dir="ltr"] .dsr-labels{ direction: ltr; }
+html[dir="rtl"] .dsr-labels{ direction: ltr; }
+
+table.rankings thead th{ text-align:start; }
+.feat-val{ text-align:end; }
+
+/* ============================= TOPBAR ============================= */
+.topbar{
+  position:relative; z-index:2;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 28px; border-bottom:1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  backdrop-filter: blur(6px);
+  position:sticky; top:0; z-index:20;
+  gap:14px; flex-wrap:wrap;
+}
+.brand{ display:flex; align-items:center; gap:12px; }
+.brand-mark{
+  width:34px; height:34px; border-radius:9px;
+  background: linear-gradient(155deg, var(--earth-yellow), var(--persian-orange));
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-weight:700; color:var(--licorice); font-size:15px;
+  flex-shrink:0;
+}
+.brand-text h1{ font-size:16px; font-weight:600; }
+.brand-text span{ font-size:11.5px; color:var(--ink-45); letter-spacing:.04em; text-transform:uppercase; }
+.topbar-right{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.status-cluster{ display:flex; align-items:center; gap:18px; font-size:12.5px; color:var(--ink-70); }
+.status-item{ display:flex; align-items:center; gap:7px; }
+.dot{ width:7px; height:7px; border-radius:50%; background:var(--up); box-shadow:0 0 0 3px color-mix(in srgb, var(--up) 25%, transparent); flex-shrink:0; }
+.dot.pulse{ animation:dotpulse 2.2s ease-in-out infinite; }
+@keyframes dotpulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+.clock{ color:var(--ink-45); }
+
+.control-cluster{ display:flex; align-items:center; gap:8px; }
+.icon-btn{
+  width:34px; height:34px; border-radius:9px; border:1px solid var(--line); background:var(--surface-2);
+  color:var(--ink-70); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:600; font-family:var(--font-mono); transition:all .15s ease; flex-shrink:0;
+}
+.icon-btn:hover{ border-color:var(--taupe-gray); color:var(--ink); }
+.icon-btn svg{ width:16px; height:16px; }
+
+/* ============================= HERO ============================= */
+.hero-wrap{ position:relative; z-index:1; padding:24px 28px 0; max-width:1560px; margin:0 auto; }
+.hero{
+  border:1px solid var(--line); border-radius:var(--radius);
+  background: linear-gradient(155deg, var(--surface-2), var(--surface));
+  padding:24px 26px; display:grid; grid-template-columns: 1.3fr 1fr; gap:28px; align-items:center;
+}
+.hero-eyebrow{ font-size:11.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--earth-yellow); font-weight:600; margin-bottom:8px; }
+.hero h2{ font-size:22px; font-weight:600; margin-bottom:8px; }
+.hero p{ font-size:13.5px; color:var(--ink-70); max-width:52ch; line-height:1.55; margin:0 0 16px; }
+.hero-cta-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+
+.btn{
+  font-size:13px; font-weight:600; padding:11px 18px; border-radius:10px; border:1px solid transparent;
+  cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:transform .15s ease, filter .15s ease;
+  font-family: var(--font-body);
+}
+.btn:active{ transform:scale(.97); }
+.btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+.btn-primary{ background:var(--earth-yellow); color:var(--licorice); }
+.btn-primary:hover:not(:disabled){ filter:brightness(1.08); }
+.btn-ghost{ background:transparent; border-color:var(--line); color:var(--ink); }
+.btn-ghost:hover:not(:disabled){ border-color:var(--taupe-gray); }
+.btn-small{ padding:7px 12px; font-size:11.5px; border-radius:8px; }
+
+.hero-meta{ font-size:11.5px; color:var(--ink-45); }
+
+.pipeline-rail{ display:flex; flex-direction:column; gap:10px; }
+.pipeline-step{
+  display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--ink-45);
+  padding:8px 10px; border-radius:8px; border:1px solid transparent; transition:all .25s ease;
+}
+.pipeline-step .num{
+  width:20px; height:20px; border-radius:50%; border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-size:10.5px; font-family:var(--font-mono);
+  flex-shrink:0; color:var(--ink-45);
+}
+.pipeline-step.active{ color:var(--ink); border-color:var(--line); background:color-mix(in srgb, var(--earth-yellow) 10%, transparent); }
+.pipeline-step.active .num{ border-color:var(--earth-yellow); color:var(--earth-yellow); }
+.pipeline-step.done{ color:var(--ink-70); }
+.pipeline-step.done .num{ border-color:var(--earth-yellow); background:var(--earth-yellow); color:var(--licorice); }
+
+/* ============================= TICKER / PULSE ============================= */
+.vitals{ position:relative; z-index:1; margin:20px auto 0; max-width:1560px; padding:0 28px; }
+.vitals-inner{
+  position:relative; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  height:78px; overflow:hidden; background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.pulse-svg{ position:absolute; inset:0; width:200%; height:100%; opacity:.55; animation: pulse-scroll 9s linear infinite; }
+#pulsePath{ stroke: var(--earth-yellow); }
+@keyframes pulse-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+.marquee{ position:absolute; inset:0; display:flex; align-items:center; }
+.marquee-track{ display:flex; gap:36px; white-space:nowrap; animation: marquee-scroll 32s linear infinite; padding-inline-start:100%; }
+.marquee-item{ display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:13px; }
+.marquee-item .fa{ font-size:13.5px; font-weight:600; }
+.marquee-item .chg{ font-size:11.5px; }
+@keyframes marquee-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-100%); } }
+@media (prefers-reduced-motion: reduce){ .pulse-svg, .marquee-track{ animation:none; } }
+
+/* ============================= LAYOUT ============================= */
+.layout{
+  position:relative; z-index:1; max-width:1560px; margin:0 auto; padding:24px 28px 60px;
+  display:grid; grid-template-columns: 1fr 372px; gap:22px; align-items:start;
+}
+.col-main, .col-side{ display:flex; flex-direction:column; gap:22px; min-width:0; }
+
+.panel{ background: var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px 20px 22px; min-width:0; }
+.panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap; }
+.panel-title{ font-size:14.5px; font-weight:600; }
+.panel-sub{ font-size:11.5px; color:var(--ink-45); margin-top:2px; font-weight:400; font-family:var(--font-body); }
+.panel-head-right{ display:flex; align-items:center; gap:8px; }
+
+.kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:14px; }
+.kpi-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; }
+.kpi-label{ font-size:11px; color:var(--ink-45); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+.kpi-value{ font-family:var(--font-display); font-size:23px; font-weight:600; }
+.kpi-value.up{ color:var(--up); } .kpi-value.down{ color:color-mix(in srgb, var(--down) 55%, var(--ink) 45%); }
+.kpi-foot{ font-size:11px; color:var(--ink-45); margin-top:5px; }
+
+.chip{ font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:99px; display:inline-flex; align-items:center; gap:5px; letter-spacing:.02em; }
+.chip-up{ background:color-mix(in srgb, var(--earth-yellow) 20%, transparent); color:var(--earth-yellow); }
+.chip-down{ background:color-mix(in srgb, var(--delft-blue) 16%, transparent); color:var(--taupe-gray); border:1px solid var(--line); }
+.chip-neutral{ background:color-mix(in srgb, var(--taupe-gray) 22%, transparent); color:var(--ink-70); }
+.chip-warn{ background:color-mix(in srgb, var(--persian-orange) 22%, transparent); color:var(--persian-orange); }
+
+.table-wrap{ overflow-x:auto; }
+.table-controls{ display:flex; gap:8px; align-items:center; }
+.search-input{ background:var(--surface-2); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:7px 11px; font-size:12px; font-family:var(--font-mono); width:150px; }
+table.rankings{ width:100%; border-collapse:collapse; min-width:660px; font-size:12.5px; }
+table.rankings thead th{ font-weight:500; color:var(--ink-45); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:0 10px 10px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none; white-space:nowrap; }
+table.rankings thead th:hover{ color:var(--ink-70); }
+table.rankings thead th.sorted{ color:var(--earth-yellow); }
+table.rankings tbody td{ padding:11px 10px; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
+table.rankings tbody tr:last-child td{ border-bottom:none; }
+table.rankings tbody tr:hover{ background:color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.sym-cell{ display:flex; align-items:center; gap:8px; }
+.prob-bar{ display:flex; height:7px; border-radius:99px; overflow:hidden; width:120px; background:var(--surface-3); }
+.prob-seg{ height:100%; }
+.prob-seg.drop{ background:var(--down); }
+.prob-seg.neutral{ background:var(--neutral); }
+.prob-seg.growth{ background:var(--up); }
+.alpha-val{ font-family:var(--font-mono); font-weight:600; }
+.alpha-val.pos{ color:var(--earth-yellow); }
+.alpha-val.neg{ color:var(--taupe-gray); }
+
+.chart-box{ position:relative; height:220px; }
+.chart-legend{ display:flex; gap:18px; font-size:11.5px; color:var(--ink-70); margin-top:12px; flex-wrap:wrap; }
+.legend-key{ display:flex; align-items:center; gap:6px; }
+.legend-swatch{ width:10px; height:3px; border-radius:2px; }
+
+.feat-list{ display:flex; flex-direction:column; gap:9px; margin-top:4px; }
+.feat-row{ display:grid; grid-template-columns:150px 1fr 44px; align-items:center; gap:10px; font-size:11.5px; }
+.feat-name{ font-family:var(--font-mono); color:var(--ink-70); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.feat-track{ height:6px; background:var(--surface-3); border-radius:99px; overflow:hidden; }
+.feat-fill{ height:100%; background:linear-gradient(90deg, var(--persian-orange), var(--earth-yellow)); }
+.feat-val{ font-family:var(--font-mono); color:var(--ink-45); }
+
+.fold-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px; }
+.fold-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:10px 11px; }
+.fold-card .fnum{ font-size:10.5px; color:var(--ink-45); }
+.fold-card .fval{ font-family:var(--font-mono); font-size:15px; font-weight:600; margin-top:3px; }
+
+.verdict-badge{ display:flex; align-items:center; gap:10px; padding:14px; border-radius:12px; border:1px solid var(--line); }
+.verdict-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+.verdict-title{ font-family:var(--font-display); font-weight:700; font-size:14px; }
+.verdict-sub{ font-size:11px; color:var(--ink-45); margin-top:2px; }
+.dsr-scale{ margin-top:14px; }
+.dsr-track{ height:6px; border-radius:99px; background:linear-gradient(90deg, var(--delft-blue), var(--taupe-gray), var(--earth-yellow)); position:relative; }
+.dsr-marker{ position:absolute; top:-4px; width:2px; height:14px; background:var(--ink); border-radius:2px; }
+.dsr-labels{ display:flex; justify-content:space-between; font-size:9.5px; color:var(--ink-45); margin-top:6px; font-family:var(--font-mono); }
+.dsr-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; font-size:11px; }
+.dsr-stat b{ display:block; font-family:var(--font-mono); font-size:13px; color:var(--ink); margin-top:3px; font-weight:600; }
+.dsr-stat{ color:var(--ink-45); }
+
+.geo-gauge-wrap{ display:flex; flex-direction:column; align-items:center; }
+.geo-readout{ text-align:center; margin-top:-46px; }
+.geo-readout .val{ font-family:var(--font-display); font-size:30px; font-weight:700; }
+.geo-readout .lbl{ font-size:10.5px; color:var(--ink-45); text-transform:uppercase; letter-spacing:.06em; }
+.geo-note{ font-size:11.5px; color:var(--ink-70); line-height:1.5; margin-top:12px; text-align:center; }
+.geo-actions{ display:flex; gap:8px; margin-top:14px; justify-content:center; flex-wrap:wrap; }
+
+.form-row{ margin-bottom:12px; }
+.form-row label{ display:block; font-size:11px; color:var(--ink-45); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em; }
+.form-row input[type=number], .form-row select{ width:100%; background:var(--surface-2); border:1px solid var(--line); color:var(--ink); padding:9px 11px; border-radius:8px; font-family:var(--font-mono); font-size:13px; }
+.seg-control{ display:flex; gap:6px; }
+.seg-btn{ flex:1; background:var(--surface-2); border:1px solid var(--line); color:var(--ink-70); padding:8px 6px; border-radius:8px; font-size:11.5px; cursor:pointer; font-family:var(--font-body); }
+.seg-btn.active{ background:color-mix(in srgb, var(--earth-yellow) 18%, var(--surface-2)); border-color:var(--earth-yellow); color:var(--earth-yellow); font-weight:600; }
+.optimize-result{ margin-top:16px; padding-top:16px; border-top:1px solid var(--line); display:none; }
+.optimize-result.show{ display:block; }
+.donut-wrap{ position:relative; height:170px; }
+.weights-list{ display:flex; flex-direction:column; gap:7px; margin-top:12px; font-size:12px; }
+.weight-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.weight-row .swatch{ width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+.weight-row .name{ display:flex; align-items:center; gap:7px; color:var(--ink-70); }
+.weight-row .pct{ font-family:var(--font-mono); font-weight:600; }
+.opt-kpis{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+.opt-kpi{ background:var(--surface-2); border-radius:8px; padding:9px 10px; }
+.opt-kpi .l{ font-size:10px; color:var(--ink-45); text-transform:uppercase; }
+.opt-kpi .v{ font-family:var(--font-mono); font-size:14px; font-weight:600; margin-top:3px; }
+
+.log-stream{ height:280px; overflow-y:auto; font-family:var(--font-mono); font-size:11.5px; line-height:1.7; background:var(--surface-3); border-radius:10px; padding:12px 14px; border:1px solid var(--line); }
+.log-line{ display:flex; gap:8px; white-space:pre-wrap; word-break:break-word; }
+.log-line .t{ color:var(--ink-45); flex-shrink:0; direction:ltr; unicode-bidi:isolate; }
+.log-line .lvl{ flex-shrink:0; font-weight:600; }
+.log-line .lvl.INFO{ color:var(--taupe-gray); }
+.log-line .lvl.WARN{ color:var(--persian-orange); }
+.log-line .lvl.OK{ color:var(--earth-yellow); }
+.log-stream::-webkit-scrollbar{ width:8px; }
+.log-stream::-webkit-scrollbar-thumb{ background:var(--surface-2); border-radius:8px; }
+
+.footer{ position:relative; z-index:1; max-width:1560px; margin:0 auto; padding:0 28px 40px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--ink-45); }
+
+@media (max-width: 980px){ .layout{ grid-template-columns:1fr; } .hero{ grid-template-columns:1fr; } }
+@media (max-width: 620px){
+  .topbar{ padding:14px 16px; }
+  .status-cluster{ display:none; }
+  .hero-wrap, .layout, .footer, .vitals{ padding-left:16px; padding-right:16px; }
+  .fold-grid{ grid-template-columns:repeat(2,1fr); }
+  .kpi-grid{ grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="grid-texture"></div>
+
+<!-- ============================= TOPBAR ============================= -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">Aβ</div>
+    <div class="brand-text">
+      <h1 data-i18n="brandTitle">Signal Desk</h1>
+      <span data-i18n="brandSub">TSE Robo-Advisor · Purged CV LightGBM</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-cluster">
+      <div class="status-item"><span class="dot pulse" id="healthDot"></span><span id="healthText" data-i18n="systemLive">System live</span></div>
+      <div class="status-item clock mono" id="clock">--:--:--</div>
+    </div>
+    <div class="control-cluster">
+      <button class="icon-btn" id="langToggleBtn" type="button" aria-label="Switch language">
+        <span id="langToggleLabel">فا</span>
+      </button>
+      <button class="icon-btn" id="themeToggleBtn" type="button" aria-label="Toggle theme">
+        <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================= HERO ============================= -->
+<div class="hero-wrap">
+  <div class="hero">
+    <div>
+      <div class="hero-eyebrow" data-i18n="heroEyebrow">Pipeline control</div>
+      <h2 data-i18n="heroTitle">Run the full advisory pipeline on demand</h2>
+      <p data-i18n="heroDesc">Data pull → feature engineering → purged walk-forward training → live inference → mean-variance allocation. Every panel below updates from whatever this run produces.</p>
+      <div class="hero-cta-row">
+        <button class="btn btn-primary" id="runPipelineBtn" data-i18n="runPipeline">▶ Run full pipeline</button>
+        <button class="btn btn-ghost" id="runPredictorBtn" data-i18n="refreshPredictions">Refresh predictions</button>
+        <span class="hero-meta"><span data-i18n="lastRun">Last run:</span> <span id="lastRunTime" class="mono">just now</span></span>
+      </div>
+    </div>
+    <div class="pipeline-rail" id="pipelineRail">
+      <div class="pipeline-step" data-step="0"><div class="num">1</div><span data-i18n="step0">Sync market + FX data</span></div>
+      <div class="pipeline-step" data-step="1"><div class="num">2</div><span data-i18n="step1">Engineer 20 stationary features</span></div>
+      <div class="pipeline-step" data-step="2"><div class="num">3</div><span data-i18n="step2">Train LightGBM (purged CV)</span></div>
+      <div class="pipeline-step" data-step="3"><div class="num">4</div><span data-i18n="step3">Score live universe</span></div>
+      <div class="pipeline-step" data-step="4"><div class="num">5</div><span data-i18n="step4">Optimize allocation</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TICKER / PULSE ============================= -->
+<div class="vitals">
+  <div class="vitals-inner">
+    <svg class="pulse-svg" viewBox="0 0 4800 60" preserveAspectRatio="none">
+      <path id="pulsePath" fill="none" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+    <div class="marquee"><div class="marquee-track" id="marqueeTrack"></div></div>
+  </div>
+</div>
+
+<!-- ============================= LAYOUT ============================= -->
+<div class="layout">
+  <div class="col-main">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="kpiPanelTitle">Backtest performance</div>
+          <div class="panel-sub" data-i18n="kpiPanelSub">Purged walk-forward, single scenario</div>
+        </div>
+      </div>
+      <div class="kpi-grid" id="kpiGrid"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="rankingsTitle">Live rankings</div>
+          <div class="panel-sub" data-i18n="rankingsSub">/api/rankings · sorted by alpha score</div>
+        </div>
+        <div class="table-controls">
+          <input class="search-input mono" id="tableFilter" data-i18n-placeholder="filterPlaceholder" placeholder="Filter symbol…">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="rankings">
+          <thead>
+            <tr>
+              <th data-key="symbol" data-i18n="thSymbol">Symbol</th>
+              <th data-key="price" data-i18n="thPrice">Price</th>
+              <th data-key="change_percent" data-i18n="thChg">Chg</th>
+              <th data-key="signal" data-i18n="thProb">Class probability</th>
+              <th data-key="alpha_score" data-i18n="thAlpha">Alpha score</th>
+              <th data-key="signal" data-i18n="thSignal">Signal</th>
+            </tr>
+          </thead>
+          <tbody id="rankingsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="equityTitle">Equity curve</div>
+          <div class="panel-sub" data-i18n="equitySub">/api/equity-curve · AI portfolio vs. USD/IRR benchmark</div>
+        </div>
+        <button class="btn btn-ghost btn-small" id="runBacktestBtn" data-i18n="rerunBacktest">Re-run backtest</button>
+      </div>
+      <div class="chart-box">
+        <canvas id="equityChart"></canvas>
+        <div id="equityChartFallback" class="panel-sub" style="display:none; padding-top:18px;"></div>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-key"><span class="legend-swatch" style="background:var(--earth-yellow)"></span><span data-i18n="legendPortfolio">AI portfolio</span></div>
+        <div class="legend-key"><span class="legend-swatch" style="background:var(--taupe-gray)"></span><span data-i18n="legendBenchmark">USD/IRR benchmark</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="modelHealthTitle">Model health</div>
+          <div class="panel-sub">model_metadata.json · <span id="modelTrainedAt"></span></div>
+        </div>
+      </div>
+      <div class="fold-grid" id="foldGrid"></div>
+      <div class="panel-sub" data-i18n="featImpTitle" style="margin:18px 0 4px;">Top feature importances (gain)</div>
+      <div class="feat-list" id="featList"></div>
+    </div>
+
+  </div>
+
+  <div class="col-side">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="dsrTitle">Deflated Sharpe verdict</div>
+          <div class="panel-sub" data-i18n="dsrSub">Is the edge distinguishable from luck?</div>
+        </div>
+      </div>
+      <div class="verdict-badge" id="verdictBadge"></div>
+      <div class="dsr-scale">
+        <div class="dsr-track"><div class="dsr-marker" id="dsrMarker"></div></div>
+        <div class="dsr-labels" id="dsrLabels"></div>
+      </div>
+      <div class="dsr-stats">
+        <div class="dsr-stat"><span data-i18n="sharpeLabel">Sharpe ratio</span><b id="sharpeVal">–</b></div>
+        <div class="dsr-stat"><span data-i18n="obsLabel">Observations</span><b id="nObsVal">–</b></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="geoTitle">Geopolitical risk brake</div>
+          <div class="panel-sub" data-i18n="geoSub">Country Impact Index (Iran)</div>
+        </div>
+      </div>
+      <div class="geo-gauge-wrap">
+        <svg width="220" height="130" viewBox="0 0 220 130">
+          <path d="M14,116 A96,96 0 0 1 206,116" fill="none" stroke="var(--surface-3)" stroke-width="14" stroke-linecap="round"/>
+          <path id="geoArc" d="M14,116 A96,96 0 0 1 206,116" fill="none" stroke-width="14" stroke-linecap="round"/>
+        </svg>
+        <div class="geo-readout">
+          <div class="val mono" id="geoScore">–</div>
+          <div class="lbl" data-i18n="geoScoreLbl">CII score</div>
+        </div>
+      </div>
+      <div class="geo-note" id="geoNote">Loading…</div>
+      <div class="geo-actions">
+        <button class="btn btn-ghost btn-small" id="geoSpikeBtn" data-i18n="simulateSpike">Simulate risk spike</button>
+        <button class="btn btn-ghost btn-small" id="geoResetBtn" data-i18n="resetGeo">Reset</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="optimizerTitle">Portfolio optimizer</div>
+          <div class="panel-sub" data-i18n="optimizerSub">POST /api/portfolio/optimize</div>
+        </div>
+      </div>
+      <form id="optimizeForm">
+        <div class="form-row">
+          <label for="capitalInput" data-i18n="capitalLabel">Capital (toman)</label>
+          <input type="number" id="capitalInput" value="50000000" step="1000000" min="0">
+        </div>
+        <div class="form-row">
+          <label data-i18n="riskLabel">Risk appetite</label>
+          <div class="seg-control" id="riskSeg">
+            <button type="button" class="seg-btn" data-val="low" data-i18n="riskLow">Low</button>
+            <button type="button" class="seg-btn active" data-val="medium" data-i18n="riskMed">Medium</button>
+            <button type="button" class="seg-btn" data-val="high" data-i18n="riskHigh">High</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="horizonLabel">Time horizon</label>
+          <div class="seg-control" id="horizonSeg">
+            <button type="button" class="seg-btn" data-val="short" data-i18n="horizonShort">Short</button>
+            <button type="button" class="seg-btn active" data-val="mid" data-i18n="horizonMid">Mid</button>
+            <button type="button" class="seg-btn" data-val="long" data-i18n="horizonLong">Long</button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;" id="optimizeBtn" data-i18n="optimizeBtn">Optimize allocation</button>
+      </form>
+      <div class="optimize-result" id="optimizeResult">
+        <div class="donut-wrap"><canvas id="donutChart"></canvas></div>
+        <div class="weights-list" id="weightsList"></div>
+        <div class="opt-kpis" id="optKpis"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title" data-i18n="logTitle">Pipeline log</div>
+          <div class="panel-sub" data-i18n="logSub">Live stream</div>
+        </div>
+      </div>
+      <div class="log-stream" id="logStream"></div>
+    </div>
+
+  </div>
+</div>
+
+<footer class="footer">
+  <span><span data-i18n="footerNote">Connected to the FastAPI backend at</span> <span class="mono">/api/*</span> <span data-i18n="footerNote2">— no mock data.</span></span>
+  <span class="mono">v1.0 · purged-cv-lgb</span>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================================
+   CONFIG
+   API_BASE is empty because app.py now serves this file itself (StaticFiles
+   mount, same origin) — see the backend patch. If you ever host the HTML
+   separately again, set this to "http://localhost:8000" instead.
+   ========================================================================= */
+const API_BASE = "";
+
+let currentLang = "en";
+let currentTheme = "dark";
+const hasStorage = (typeof window.storage !== "undefined") && !!window.storage;
+
+/* ============================= I18N ============================= */
+const I18N = {
+  en: {
+    dir:"ltr",
+    brandTitle:"Signal Desk", brandSub:"TSE Robo-Advisor · Purged CV LightGBM",
+    systemLive:"System live", systemOffline:"Backend unreachable",
+    heroEyebrow:"Pipeline control",
+    heroTitle:"Run the full advisory pipeline on demand",
+    heroDesc:"Data pull → feature engineering → purged walk-forward training → live inference → mean-variance allocation. Every panel below updates from whatever this run produces.",
+    runPipeline:"▶ Run full pipeline", refreshPredictions:"Refresh predictions", lastRun:"Last run:",
+    step0:"Sync market + FX data", step1:"Engineer 20 stationary features", step2:"Train LightGBM (purged CV)",
+    step3:"Score live universe", step4:"Optimize allocation",
+    kpiPanelTitle:"Backtest performance", kpiPanelSub:"Purged walk-forward, single scenario",
+    kpiTotalReturn:"Total return", kpiSharpe:"Sharpe ratio", kpiMaxDD:"Max drawdown",
+    kpiAlphaEW:"Alpha vs. equal-weight", kpiCiAdj:"CI adjustments",
+    footTotalReturn:(v)=>`vs. ${v} USD benchmark`, footSharpe:"annualized", footMaxDD:"peak-to-trough",
+    footAlphaEW:"pure stock-picking skill", footCiAdj:"corporate actions handled",
+    noBacktestYet:"No backtest_metrics.json yet — run backtester.py once.",
+    rankingsTitle:"Live rankings", rankingsSub:"/api/rankings · sorted by alpha score",
+    filterPlaceholder:"Filter symbol…",
+    thSymbol:"Symbol", thPrice:"Price", thChg:"Chg", thProb:"Class probability", thAlpha:"Alpha score", thSignal:"Signal",
+    signalStale:"⛔ Stale · halted", signalGrowth:"🔥 Strong growth", signalNeutral:"⚖ Neutral", signalNone:"— No buy",
+    noRankingsYet:"No predictions yet — run the pipeline to populate this.",
+    equityTitle:"Equity curve", equitySub:"/api/equity-curve · AI portfolio vs. USD/IRR benchmark", rerunBacktest:"Refresh from backend",
+    legendPortfolio:"AI portfolio", legendBenchmark:"USD/IRR benchmark",
+    noEquityYet:"No backtest_equity_curve.xlsx yet — run backtester.py once.",
+    chartLibMissing:"Chart.js failed to load (chart.min.js missing from frontend/, or blocked). Data is fine — this is a rendering library problem, not a backend problem.",
+    modelHealthTitle:"Model health", featImpTitle:"Top feature importances (gain)",
+    noModelYet:"No trained model yet — run the pipeline first.",
+    dsrTitle:"Deflated Sharpe verdict", dsrSub:"Is the edge distinguishable from luck?",
+    dsrGo:"GO", dsrCaution:"CAUTION", dsrNogo:"NO-GO",
+    dsrGoSub:"Signal is statistically distinguishable from chance",
+    dsrCautionSub:"Not enough evidence yet to separate from luck",
+    dsrNogoSub:"Statistically indistinguishable from a random strategy",
+    dsrNoData:"No verdict yet", dsrNoDataSub:"Run backtester.py and it will appear here",
+    dsrLabel0:"0.0 NO-GO", dsrLabel1:"0.5 CAUTION", dsrLabel2:"0.95 GO", dsrLabel3:"1.0",
+    sharpeLabel:"Sharpe ratio", obsLabel:"Observations",
+    geoTitle:"Geopolitical risk brake", geoSub:"Country Impact Index (Iran) · illustrative, not live-fed",
+    geoScoreLbl:"CII score",
+    geoNormal:"Normal range — no allocation throttle applied.",
+    geoElevated:(cap)=>`⚠️ Elevated — equity cap reduced to <b>${cap}</b> of the normal ceiling.`,
+    geoCritical:(cap)=>`🚨 Critical — equity cap throttled to <b>${cap}</b> of allocatable capital.`,
+    simulateSpike:"Simulate risk spike", resetGeo:"Reset",
+    optimizerTitle:"Portfolio optimizer", optimizerSub:"POST /api/portfolio/optimize",
+    capitalLabel:"Capital (toman)", riskLabel:"Risk appetite", horizonLabel:"Time horizon",
+    riskLow:"Low", riskMed:"Medium", riskHigh:"High", horizonShort:"Short", horizonMid:"Mid", horizonLong:"Long",
+    optimizeBtn:"Optimize allocation", optimizing:"Optimizing…",
+    optTotalReturn:"Total return*", optSharpe:"Sharpe*", optMaxDD:"Max drawdown*", optRiskExposure:"Risk exposure",
+    logTitle:"Pipeline log", logSub:"Live stream",
+    footerNote:"Connected to the FastAPI backend at", footerNote2:"— no mock data.",
+    themeToLight:"Switch to light mode", themeToDark:"Switch to dark mode",
+    langSwitchLabel:"Switch to Persian",
+    logs:{
+      boot:"dashboard: connecting to backend…",
+      healthOk:(pred,eq)=>`backend: /api/health ok (predictions:${pred} · equity:${eq})`,
+      healthFail:"backend: /api/health unreachable — is uvicorn running?",
+      rankingsOk:(n)=>`live_predictor: ${n} rows loaded from /api/rankings`,
+      rankingsFail:(m)=>`live_predictor: failed to load rankings — ${m}`,
+      equityOk:(n)=>`backtester: ${n} points loaded from /api/equity-curve`,
+      equityFail:(m)=>`backtester: failed to load equity curve — ${m}`,
+      metricsOk:"backtester: backtest_metrics.json loaded",
+      metricsMissing:"backtester: backtest_metrics.json not found yet",
+      modelOk:(n)=>`train_model: model health loaded (${n} folds)`,
+      modelFail:(m)=>`train_model: failed to load model health — ${m}`,
+      optimizeReq:(cap,risk,horizon)=>`portfolio_optimizer: request capital=${cap} risk=${risk} horizon=${horizon}`,
+      optimizeDone:(n)=>`portfolio_optimizer: allocation ready — ${n} equity positions + fixed income`,
+      optimizeFail:(m)=>`portfolio_optimizer: request failed — ${m}`,
+      geoSpike:(score)=>`(demo) geopolitical_features: CII=${score} — equity cap throttled to 20%`,
+      geoReset:"(demo) geopolitical_features: CII back to normal range",
+      pipelineStart:"main.py: POST /api/pipeline/run — this can take a minute…",
+      pipelineDone:"main.py: pipeline complete, refreshing dashboard…",
+      pipelineFail:(m)=>`main.py: run failed — ${m}`,
+    },
+  },
+  fa: {
+    dir:"rtl",
+    brandTitle:"میز سیگنال", brandSub:"مشاور رباتیک بورس تهران · LightGBM با CV پاک‌سازی‌شده",
+    systemLive:"سامانه برخط", systemOffline:"بک‌اند در دسترس نیست",
+    heroEyebrow:"کنترل خط‌لوله",
+    heroTitle:"اجرای کامل خط‌لوله مشاوره به‌درخواست شما",
+    heroDesc:"دریافت داده ← مهندسی ویژگی ← آموزش با اعتبارسنجی گام‌به‌گام پاک‌سازی‌شده ← استنتاج زنده ← تخصیص میانگین-واریانس. تمام پنل‌های زیر بر اساس خروجی همین اجرا به‌روزرسانی می‌شوند.",
+    runPipeline:"▶ اجرای کامل خط‌لوله", refreshPredictions:"به‌روزرسانی پیش‌بینی‌ها", lastRun:"آخرین اجرا:",
+    step0:"همگام‌سازی داده بازار و ارز", step1:"مهندسی ۲۰ ویژگی پایا", step2:"آموزش LightGBM (CV پاک‌سازی‌شده)",
+    step3:"امتیازدهی به دادهٔ زنده", step4:"بهینه‌سازی تخصیص",
+    kpiPanelTitle:"عملکرد بک‌تست", kpiPanelSub:"گام‌به‌گام پاک‌سازی‌شده، یک سناریو",
+    kpiTotalReturn:"بازده کل", kpiSharpe:"نسبت شارپ", kpiMaxDD:"حداکثر افت سرمایه",
+    kpiAlphaEW:"آلفا نسبت به سبد هم‌وزن", kpiCiAdj:"تعدیل‌های افزایش سرمایه",
+    footTotalReturn:(v)=>`در برابر ${v} بنچمارک دلار`, footSharpe:"سالانه‌شده", footMaxDD:"از قله تا دره",
+    footAlphaEW:"مهارت خالص انتخاب سهم", footCiAdj:"رویدادهای شرکتی مدیریت‌شده",
+    noBacktestYet:"هنوز backtest_metrics.json وجود ندارد — یک‌بار backtester.py را اجرا کنید.",
+    rankingsTitle:"رتبه‌بندی زنده", rankingsSub:"/api/rankings · مرتب‌شده بر اساس امتیاز آلفا",
+    filterPlaceholder:"فیلتر نماد…",
+    thSymbol:"نماد", thPrice:"قیمت", thChg:"تغییر", thProb:"احتمال کلاس", thAlpha:"امتیاز آلفا", thSignal:"سیگنال",
+    signalStale:"⛔ داده قدیمی · متوقف", signalGrowth:"🔥 رشد قوی", signalNeutral:"⚖ خنثی", signalNone:"— عدم خرید",
+    noRankingsYet:"هنوز پیش‌بینی‌ای موجود نیست — پایپ‌لاین را اجرا کنید.",
+    equityTitle:"منحنی سرمایه", equitySub:"/api/equity-curve · پرتفوی هوش‌مصنوعی در برابر بنچمارک دلار", rerunBacktest:"به‌روزرسانی از بک‌اند",
+    legendPortfolio:"پرتفوی هوش‌مصنوعی", legendBenchmark:"بنچمارک دلار",
+    noEquityYet:"هنوز backtest_equity_curve.xlsx وجود ندارد — یک‌بار backtester.py را اجرا کنید.",
+    chartLibMissing:"بارگذاری Chart.js ناموفق بود (فایل chart.min.js در frontend/ نیست یا مسدود شده). داده سالم است — این مشکل کتابخانه‌ی رندر است، نه بک‌اند.",
+    modelHealthTitle:"سلامت مدل", featImpTitle:"مهم‌ترین ویژگی‌ها (بر اساس gain)",
+    noModelYet:"هنوز مدلی آموزش ندیده — ابتدا پایپ‌لاین را اجرا کنید.",
+    dsrTitle:"حکم نسبت شارپ کاهش‌یافته", dsrSub:"آیا این مزیت از شانس قابل تفکیک است؟",
+    dsrGo:"تأیید", dsrCaution:"احتیاط", dsrNogo:"رد",
+    dsrGoSub:"سیگنال از نظر آماری از شانس قابل تفکیک است",
+    dsrCautionSub:"شواهد هنوز برای تفکیک از شانس کافی نیست",
+    dsrNogoSub:"از نظر آماری غیرقابل تفکیک از یک استراتژی تصادفی است",
+    dsrNoData:"هنوز حکمی صادر نشده", dsrNoDataSub:"backtester.py را اجرا کنید تا اینجا نمایش داده شود",
+    dsrLabel0:"۰٫۰ رد", dsrLabel1:"۰٫۵ احتیاط", dsrLabel2:"۰٫۹۵ تأیید", dsrLabel3:"۱٫۰",
+    sharpeLabel:"نسبت شارپ", obsLabel:"تعداد مشاهدات",
+    geoTitle:"ترمز ریسک ژئوپلیتیک", geoSub:"شاخص تأثیر کشوری (ایران) · نمایشی است، به بک‌اند زنده وصل نیست",
+    geoScoreLbl:"امتیاز CII",
+    geoNormal:"محدودهٔ عادی — هیچ محدودیتی روی تخصیص اعمال نشده.",
+    geoElevated:(cap)=>`⚠️ ریسک بالا — سقف سهام به <b>${cap}</b> از سقف عادی کاهش یافت.`,
+    geoCritical:(cap)=>`🚨 بحرانی — سقف تخصیص سهام به <b>${cap}</b> از سرمایهٔ قابل‌تخصیص محدود شد.`,
+    simulateSpike:"شبیه‌سازی جهش ریسک", resetGeo:"بازنشانی",
+    optimizerTitle:"بهینه‌ساز پرتفوی", optimizerSub:"POST /api/portfolio/optimize",
+    capitalLabel:"سرمایه (تومان)", riskLabel:"میزان ریسک‌پذیری", horizonLabel:"افق زمانی",
+    riskLow:"کم", riskMed:"متوسط", riskHigh:"بالا", horizonShort:"کوتاه", horizonMid:"میان", horizonLong:"بلند",
+    optimizeBtn:"بهینه‌سازی تخصیص", optimizing:"در حال بهینه‌سازی…",
+    optTotalReturn:"بازده کل*", optSharpe:"شارپ*", optMaxDD:"حداکثر افت*", optRiskExposure:"میزان مواجهه با ریسک",
+    logTitle:"لاگ خط‌لوله", logSub:"جریان زنده",
+    footerNote:"متصل به بک‌اند FastAPI در آدرس", footerNote2:"— بدون دادهٔ نمایشی.",
+    themeToLight:"تغییر به حالت روشن", themeToDark:"تغییر به حالت تیره",
+    langSwitchLabel:"تغییر به انگلیسی",
+    logs:{
+      boot:"dashboard: در حال اتصال به بک‌اند…",
+      healthOk:(pred,eq)=>`backend: /api/health سالم است (predictions:${pred} · equity:${eq})`,
+      healthFail:"backend: /api/health در دسترس نیست — uvicorn اجرا شده؟",
+      rankingsOk:(n)=>`live_predictor: ${n} ردیف از /api/rankings دریافت شد`,
+      rankingsFail:(m)=>`live_predictor: خطا در دریافت رتبه‌بندی — ${m}`,
+      equityOk:(n)=>`backtester: ${n} نقطه از /api/equity-curve دریافت شد`,
+      equityFail:(m)=>`backtester: خطا در دریافت منحنی سرمایه — ${m}`,
+      metricsOk:"backtester: backtest_metrics.json بارگذاری شد",
+      metricsMissing:"backtester: هنوز backtest_metrics.json موجود نیست",
+      modelOk:(n)=>`train_model: سلامت مدل دریافت شد (${n} فولد)`,
+      modelFail:(m)=>`train_model: خطا در دریافت سلامت مدل — ${m}`,
+      optimizeReq:(cap,risk,horizon)=>`portfolio_optimizer: درخواست سرمایه=${cap} ریسک=${risk} افق=${horizon}`,
+      optimizeDone:(n)=>`portfolio_optimizer: تخصیص آماده شد — ${n} موقعیت سهام + درآمد ثابت`,
+      optimizeFail:(m)=>`portfolio_optimizer: درخواست ناموفق بود — ${m}`,
+      geoSpike:(score)=>`(نمایشی) geopolitical_features: CII=${score} — سقف سهام به ۲۰٪ محدود شد`,
+      geoReset:"(نمایشی) geopolitical_features: CII به محدودهٔ عادی بازگشت",
+      pipelineStart:"main.py: درخواست POST /api/pipeline/run ارسال شد — ممکن است یک دقیقه طول بکشد…",
+      pipelineDone:"main.py: پایپ‌لاین کامل شد، در حال به‌روزرسانی داشبورد…",
+      pipelineFail:(m)=>`main.py: اجرا ناموفق بود — ${m}`,
+    },
+  },
+};
+
+function t(key){ return I18N[currentLang][key]; }
+function tlog(key){ return I18N[currentLang].logs[key]; }
+
+/* ============================= STATE ============================= */
+let rankings = [];
+let equitySeries = [];
+let backtestMetrics = null;        // null until /api/backtest-metrics returns data
+let foldMetrics = [];
+let featureImportances = [];
+let modelTrainedAt = null;
+let GEO = { score: 58 };           // local-only UI demo, not backend-fed (see geoSub)
+const CII_HIGH = 65, CII_CRIT = 80;
+
+let sortState = { key:"alpha_score", dir:-1 };
+let equityChart, donutChart;
+let lastOptimize = null;
+
+/* ============================= HELPERS ============================= */
+function pct(x, digits=1){ return (x==null || isNaN(x)) ? "–" : (x*100).toFixed(digits) + "%"; }
+function fmtToman(x){ return Math.round(x).toLocaleString("en-US"); }
+function alphaScore(r){ return r.alpha_score != null ? r.alpha_score : (r.growth_prob - r.drop_prob); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function hexToRgba(hex, alpha){
+  hex = hex.replace("#","").trim();
+  if(hex.length===3){ hex = hex.split("").map(c=>c+c).join(""); }
+  const r=parseInt(hex.substring(0,2),16), g=parseInt(hex.substring(2,4),16), b=parseInt(hex.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function chartColors(){
+  return {
+    earth:cssVar("--earth-yellow"), taupe:cssVar("--taupe-gray"), delft:cssVar("--delft-blue"),
+    orange:cssVar("--persian-orange"), ink:cssVar("--text-primary"), bgCard:cssVar("--bg-card"),
+    surface2:cssVar("--surface-2"), line:cssVar("--border-color"),
+  };
+}
+
+/* ============================= LOG STREAM ============================= */
+const logEl = document.getElementById("logStream");
+function log(level, msg){
+  const line = document.createElement("div");
+  line.className = "log-line";
+  const time = new Date().toLocaleTimeString("en-GB");
+  line.innerHTML = `<span class="t mono">${time}</span><span class="lvl ${level}">${level}</span><span>${msg}</span>`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+  while(logEl.children.length > 100){ logEl.removeChild(logEl.firstChild); }
+}
+
+/* ============================= PERSISTENCE ============================= */
+async function loadPreferences(){
+  if(!hasStorage) return;
+  try{ const r = await window.storage.get("theme-preference"); if(r && r.value){ currentTheme = r.value; } }catch(e){}
+  try{ const r = await window.storage.get("language-preference"); if(r && r.value){ currentLang = r.value; } }catch(e){}
+}
+async function savePreference(key, value){
+  if(!hasStorage) return;
+  try{ await window.storage.set(key, value); }catch(e){ console.warn("storage unavailable", e); }
+}
+
+/* ============================= THEME ============================= */
+function applyTheme(theme, {persist=true, rerenderCharts=true} = {}){
+  currentTheme = theme;
+  if(theme === "light"){ document.documentElement.setAttribute("data-theme","light"); }
+  else{ document.documentElement.removeAttribute("data-theme"); }
+  document.getElementById("iconMoon").style.display = theme === "light" ? "block" : "none";
+  document.getElementById("iconSun").style.display = theme === "light" ? "none" : "block";
+  document.getElementById("themeToggleBtn").setAttribute("aria-label", theme==="light" ? t("themeToDark") : t("themeToLight"));
+  if(persist) savePreference("theme-preference", theme);
+  // Canvas is a bitmap: unlike DOM/SVG it does not live-track CSS variables,
+  // so charts must be explicitly redrawn with the new theme's resolved colors.
+  if(rerenderCharts){
+    renderEquityChart();
+    if(lastOptimize) renderDonut(lastOptimize.weights, lastOptimize.capital);
+  }
+}
+document.getElementById("themeToggleBtn").addEventListener("click", () => {
+  applyTheme(currentTheme === "light" ? "dark" : "light");
+});
+
+/* ============================= LANGUAGE ============================= */
+function applyStaticTranslations(){
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const val = t(el.dataset.i18n);
+    if(typeof val === "string") el.textContent = val;
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+}
+function applyLanguage(lang, {persist=true} = {}){
+  currentLang = lang;
+  const dir = I18N[lang].dir;
+  document.documentElement.setAttribute("lang", lang);
+  document.documentElement.setAttribute("dir", dir);
+  document.getElementById("langToggleLabel").textContent = lang === "en" ? "فا" : "EN";
+  document.getElementById("langToggleBtn").setAttribute("aria-label", t("langSwitchLabel"));
+  if(persist) savePreference("language-preference", lang);
+  applyStaticTranslations();
+  renderAll();
+}
+document.getElementById("langToggleBtn").addEventListener("click", () => {
+  applyLanguage(currentLang === "en" ? "fa" : "en");
+});
+
+/* ============================= PULSE LINE ============================= */
+(function drawPulse(){
+  const unit = "l40,0 l15,0 l10,-22 l10,44 l10,-38 l10,16 l15,0 l90,0";
+  let d = "M0,30 ";
+  for(let i=0;i<24;i++){ d += unit + " "; }
+  document.getElementById("pulsePath").setAttribute("d", d);
+})();
+
+/* ============================= TICKER MARQUEE ============================= */
+function renderMarquee(){
+  const track = document.getElementById("marqueeTrack");
+  const live = rankings.filter(r=>!r.is_stale);
+  if(!live.length){ track.innerHTML = ""; return; }
+  const items = live.concat(live);
+  track.innerHTML = items.map(r => {
+    const up = r.change_percent >= 0;
+    const color = up ? "var(--earth-yellow)" : "var(--taupe-gray)";
+    return `<div class="marquee-item">
+      <span class="fa">${r.symbol}</span>
+      <span class="price mono">${fmtToman(r.price)}</span>
+      <span class="chg mono" style="color:${color}">${up?"▲":"▼"} ${Math.abs(r.change_percent).toFixed(1)}%</span>
+    </div>`;
+  }).join("");
+}
+
+/* ============================= KPI STRIP ============================= */
+function renderKpis(){
+  const grid = document.getElementById("kpiGrid");
+  if(!backtestMetrics){
+    grid.innerHTML = `<div class="kpi-card" style="grid-column:1/-1;"><div class="kpi-foot">${t("noBacktestYet")}</div></div>`;
+    return;
+  }
+  const m = backtestMetrics;
+  const items = [
+    { label:t("kpiTotalReturn"), value:pct(m.total_return), cls:m.total_return>=0?"up":"down", foot:t("footTotalReturn")(pct(m.benchmark_return_dollar)) },
+    { label:t("kpiSharpe"), value:(m.sharpe_ratio!=null?m.sharpe_ratio.toFixed(2):"–"), cls:"", foot:t("footSharpe") },
+    { label:t("kpiMaxDD"), value:pct(m.max_drawdown), cls:"down", foot:t("footMaxDD") },
+    { label:t("kpiAlphaEW"), value:pct(m.alpha_vs_equal_weight), cls:"up", foot:t("footAlphaEW") },
+    { label:t("kpiCiAdj"), value:(m.capital_increase_adjustments_applied ?? "–"), cls:"", foot:t("footCiAdj") },
+  ];
+  grid.innerHTML = items.map(k => `
+    <div class="kpi-card">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value ${k.cls}">${k.value}</div>
+      <div class="kpi-foot">${k.foot}</div>
+    </div>`).join("");
+}
+
+/* ============================= RANKINGS TABLE ============================= */
+function classChip(cls, stale){
+  if(stale) return `<span class="chip chip-warn">${t("signalStale")}</span>`;
+  if(cls===2) return `<span class="chip chip-up">${t("signalGrowth")}</span>`;
+  if(cls===1) return `<span class="chip chip-neutral">${t("signalNeutral")}</span>`;
+  return `<span class="chip chip-down">${t("signalNone")}</span>`;
+}
+function renderTable(){
+  const body = document.getElementById("rankingsBody");
+  if(!rankings.length){
+    body.innerHTML = `<tr><td colspan="6" class="panel-sub" style="padding:18px 10px;">${t("noRankingsYet")}</td></tr>`;
+    return;
+  }
+  const filter = document.getElementById("tableFilter").value.trim();
+  let rows = rankings.map(r => ({...r, alpha_score:alphaScore(r)}));
+  if(filter){ rows = rows.filter(r => r.symbol.includes(filter)); }
+  rows.sort((a,b) => {
+    const k = sortState.key === "signal" ? "alpha_score" : sortState.key;
+    return ((a[k]??0)-(b[k]??0)) * sortState.dir;
+  });
+  body.innerHTML = rows.map(r => {
+    const up = r.change_percent >= 0;
+    const drop = r.drop_prob ?? 0, neutral = r.neutral_prob ?? 0, growth = r.growth_prob ?? 0;
+    return `
+    <tr>
+      <td><div class="sym-cell"><span class="fa">${r.symbol}</span></div></td>
+      <td class="mono">${fmtToman(r.price)}</td>
+      <td class="mono" style="color:${up?'var(--earth-yellow)':'var(--taupe-gray)'}">${up?'+':''}${r.change_percent.toFixed(1)}%</td>
+      <td>
+        <div class="prob-bar" title="${drop.toFixed(0)}/${neutral.toFixed(0)}/${growth.toFixed(0)}">
+          <div class="prob-seg drop" style="width:${drop}%"></div>
+          <div class="prob-seg neutral" style="width:${neutral}%"></div>
+          <div class="prob-seg growth" style="width:${growth}%"></div>
+        </div>
+      </td>
+      <td class="alpha-val ${r.alpha_score>=0?'pos':'neg'}">${r.alpha_score>=0?'+':''}${r.alpha_score.toFixed(1)}</td>
+      <td>${classChip(r.predicted_class, r.is_stale)}</td>
+    </tr>`;
+  }).join("");
+}
+document.querySelectorAll("table.rankings thead th").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.key;
+    sortState.dir = (sortState.key === key) ? -sortState.dir : -1;
+    sortState.key = key;
+    document.querySelectorAll("table.rankings thead th").forEach(x=>x.classList.remove("sorted"));
+    th.classList.add("sorted");
+    renderTable();
+  });
+});
+document.getElementById("tableFilter").addEventListener("input", renderTable);
+
+/* ============================= EQUITY CHART ============================= */
+function renderEquityChart(){
+  const canvas = document.getElementById("equityChart");
+  const fallback = document.getElementById("equityChartFallback");
+  if(equityChart){ equityChart.destroy(); equityChart = null; }
+
+  if(typeof Chart === "undefined"){
+    canvas.style.display = "none";
+    fallback.style.display = "block";
+    fallback.textContent = t("chartLibMissing");
+    return;
+  }
+  canvas.style.display = "block";
+  fallback.style.display = "none";
+
+  const c = chartColors();
+  if(!equitySeries.length){
+    return; // chart-box stays empty; panel-sub / log already explain why
+  }
+  equityChart = new Chart(canvas, {
+    type:"line",
+    data:{ labels: equitySeries.map(p=>p.date), datasets:[
+      { label:t("legendPortfolio"), data:equitySeries.map(p=>p.portfolio_value), borderColor:c.earth, backgroundColor:hexToRgba(c.earth,.12), fill:true, tension:.35, pointRadius:0, borderWidth:2.4 },
+      { label:t("legendBenchmark"), data:equitySeries.map(p=>p.market_value), borderColor:c.taupe, backgroundColor:"transparent", fill:false, tension:.35, pointRadius:0, borderWidth:1.6, borderDash:[4,3] },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ mode:"index", intersect:false,
+        backgroundColor:c.surface2, titleColor:c.ink, bodyColor:c.ink, borderColor:c.line, borderWidth:1 } },
+      scales:{
+        x:{ grid:{ color:hexToRgba(c.taupe,.12) }, ticks:{ color:c.taupe, maxTicksLimit:6, font:{family:"IBM Plex Mono", size:10} } },
+        y:{ grid:{ color:hexToRgba(c.taupe,.12) }, ticks:{ color:c.taupe, font:{family:"IBM Plex Mono", size:10}, callback:(v)=>(v/1e6).toFixed(0)+"M" } },
+      },
+      interaction:{ mode:"index", intersect:false },
+    }
+  });
+}
+
+/* ============================= MODEL HEALTH ============================= */
+function renderModelHealth(){
+  document.getElementById("modelTrainedAt").textContent = modelTrainedAt || "–";
+  const foldGrid = document.getElementById("foldGrid");
+  if(!foldMetrics.length){
+    foldGrid.innerHTML = `<div class="panel-sub" style="grid-column:1/-1;">${t("noModelYet")}</div>`;
+    document.getElementById("featList").innerHTML = "";
+    return;
+  }
+  foldGrid.innerHTML = foldMetrics.map(f => `
+    <div class="fold-card">
+      <div class="fnum">Fold ${f.fold}</div>
+      <div class="fval" style="color:var(--earth-yellow)">${(f.accuracy*100).toFixed(1)}%</div>
+      <div class="fnum">acc · f1 ${f.f1_macro.toFixed(2)}${f.ordinal_distance!=null?` · ord ${f.ordinal_distance.toFixed(2)}`:""}</div>
+    </div>`).join("");
+  const maxImp = featureImportances.length ? featureImportances[0][1] : 1;
+  document.getElementById("featList").innerHTML = featureImportances.map(([name,val]) => `
+    <div class="feat-row">
+      <div class="feat-name">${name}</div>
+      <div class="feat-track"><div class="feat-fill" style="width:${(val/maxImp*100).toFixed(0)}%"></div></div>
+      <div class="feat-val">${Math.round(val)}</div>
+    </div>`).join("");
+}
+
+/* ============================= DSR VERDICT ============================= */
+function renderVerdict(){
+  if(!backtestMetrics || backtestMetrics.deflated_sharpe_ratio == null){
+    document.getElementById("verdictBadge").innerHTML = `
+      <div class="verdict-dot" style="background:var(--taupe-gray)"></div>
+      <div>
+        <div class="verdict-title" style="color:var(--taupe-gray)">${t("dsrNoData")}</div>
+        <div class="verdict-sub">${t("dsrNoDataSub")}</div>
+      </div>`;
+    document.getElementById("dsrMarker").style.left = `-2px`;
+    document.getElementById("dsrLabels").innerHTML = `<span>${t("dsrLabel0")}</span><span>${t("dsrLabel1")}</span><span>${t("dsrLabel2")}</span><span>${t("dsrLabel3")}</span>`;
+    document.getElementById("sharpeVal").textContent = "–";
+    document.getElementById("nObsVal").textContent = "–";
+    return;
+  }
+  const dsr = backtestMetrics.deflated_sharpe_ratio;
+  let verdict, color, sub;
+  if(dsr >= 0.95){ verdict=t("dsrGo"); color="var(--earth-yellow)"; sub=t("dsrGoSub"); }
+  else if(dsr >= 0.5){ verdict=t("dsrCaution"); color="var(--persian-orange)"; sub=t("dsrCautionSub"); }
+  else { verdict=t("dsrNogo"); color="color-mix(in srgb, var(--delft-blue) 70%, var(--taupe-gray) 30%)"; sub=t("dsrNogoSub"); }
+
+  document.getElementById("verdictBadge").innerHTML = `
+    <div class="verdict-dot" style="background:${color}"></div>
+    <div>
+      <div class="verdict-title" style="color:${color}">${verdict} · DSR ${dsr.toFixed(3)}</div>
+      <div class="verdict-sub">${sub}</div>
+    </div>`;
+  document.getElementById("dsrMarker").style.left = `calc(${(dsr*100).toFixed(1)}% - 1px)`;
+  document.getElementById("dsrLabels").innerHTML = `<span>${t("dsrLabel0")}</span><span>${t("dsrLabel1")}</span><span>${t("dsrLabel2")}</span><span>${t("dsrLabel3")}</span>`;
+  document.getElementById("sharpeVal").textContent = backtestMetrics.sharpe_ratio!=null ? backtestMetrics.sharpe_ratio.toFixed(2) : "–";
+  document.getElementById("nObsVal").textContent = backtestMetrics.n_obs ?? "–";
+}
+
+/* ============================= GEO GAUGE (local demo, not backend-fed) ============================= */
+function renderGeo(){
+  const score = clamp(GEO.score, 0, 100);
+  const arc = document.getElementById("geoArc");
+  const circumference = Math.PI * 96;
+  arc.setAttribute("stroke-dasharray", `${circumference*(score/100)} ${circumference}`);
+  arc.style.stroke = score >= CII_HIGH ? "var(--persian-orange)" : "var(--earth-yellow)";
+  document.getElementById("geoScore").textContent = score.toFixed(0);
+  const note = document.getElementById("geoNote");
+  if(score >= CII_CRIT){ note.innerHTML = t("geoCritical")("20%"); }
+  else if(score >= CII_HIGH){ note.innerHTML = t("geoElevated")("70%"); }
+  else{ note.textContent = t("geoNormal"); }
+}
+document.getElementById("geoSpikeBtn").addEventListener("click", () => {
+  GEO.score = 82; renderGeo();
+  log("WARN", tlog("geoSpike")(GEO.score.toFixed(1)));
+});
+document.getElementById("geoResetBtn").addEventListener("click", () => {
+  GEO.score = 58; renderGeo();
+  log("INFO", tlog("geoReset"));
+});
+
+/* ============================= BACKEND CALLS ============================= */
+async function apiFetchHealth(){
+  try{
+    const res = await fetch(`${API_BASE}/api/health`);
+    const data = await res.json();
+    document.getElementById("healthDot").style.background = "var(--up)";
+    document.getElementById("healthText").textContent = t("systemLive");
+    log("INFO", tlog("healthOk")(data.live_predictions_exist, data.equity_curve_exists));
+    return data;
+  }catch(err){
+    document.getElementById("healthDot").style.background = "var(--persian-orange)";
+    document.getElementById("healthText").textContent = t("systemOffline");
+    log("WARN", tlog("healthFail"));
+    return null;
+  }
+}
+
+async function apiFetchRankings(){
+  try{
+    const res = await fetch(`${API_BASE}/api/rankings`);
+    if(!res.ok){ rankings = []; renderTable(); renderMarquee(); log("WARN", tlog("rankingsFail")(`HTTP ${res.status}`)); return; }
+    rankings = await res.json();
+    renderTable(); renderMarquee();
+    log("OK", tlog("rankingsOk")(rankings.length));
+  }catch(err){
+    rankings = []; renderTable(); renderMarquee();
+    log("WARN", tlog("rankingsFail")(err.message));
+  }
+}
+
+async function apiFetchEquityCurve(){
+  try{
+    const res = await fetch(`${API_BASE}/api/equity-curve`);
+    if(!res.ok){ equitySeries = []; log("WARN", tlog("equityFail")(`HTTP ${res.status}`)); renderEquityChart(); return; }
+    equitySeries = await res.json();
+    log("OK", tlog("equityOk")(equitySeries.length));
+  }catch(err){
+    // A genuine fetch/network/JSON-parse failure — data really is unavailable.
+    equitySeries = [];
+    log("WARN", tlog("equityFail")(err.message));
+  }
+  try{
+    // Rendering is a separate concern from fetching: if this throws, the
+    // data was fine — don't discard it or mislabel this as a fetch failure.
+    renderEquityChart();
+  }catch(err){
+    log("WARN", `equity chart render failed — ${err.message}`);
+  }
+}
+
+async function apiFetchBacktestMetrics(){
+  try{
+    const res = await fetch(`${API_BASE}/api/backtest-metrics`);
+    if(!res.ok){ backtestMetrics = null; renderKpis(); renderVerdict(); log("INFO", tlog("metricsMissing")); return; }
+    backtestMetrics = await res.json();
+    renderKpis(); renderVerdict();
+    log("OK", tlog("metricsOk"));
+  }catch(err){
+    backtestMetrics = null; renderKpis(); renderVerdict();
+    log("INFO", tlog("metricsMissing"));
+  }
+}
+
+async function apiFetchModelHealth(){
+  try{
+    const res = await fetch(`${API_BASE}/api/model-health`);
+    if(!res.ok){ foldMetrics=[]; featureImportances=[]; renderModelHealth(); log("WARN", tlog("modelFail")(`HTTP ${res.status}`)); return; }
+    const data = await res.json();
+    modelTrainedAt = data.trained_at || null;
+    foldMetrics = data.folds || [];
+    featureImportances = data.feature_importance || [];
+    renderModelHealth();
+    log("OK", tlog("modelOk")(foldMetrics.length));
+  }catch(err){
+    foldMetrics=[]; featureImportances=[]; renderModelHealth();
+    log("WARN", tlog("modelFail")(err.message));
+  }
+}
+
+async function refreshAllFromBackend(){
+  await Promise.all([
+    apiFetchRankings(),
+    apiFetchEquityCurve(),
+    apiFetchBacktestMetrics(),
+    apiFetchModelHealth(),
+  ]);
+  stampLastRun();
+}
+
+/* ============================= OPTIMIZER ============================= */
+document.querySelectorAll("#riskSeg .seg-btn").forEach(b=>b.addEventListener("click", ()=>{
+  document.querySelectorAll("#riskSeg .seg-btn").forEach(x=>x.classList.remove("active")); b.classList.add("active");
+}));
+document.querySelectorAll("#horizonSeg .seg-btn").forEach(b=>b.addEventListener("click", ()=>{
+  document.querySelectorAll("#horizonSeg .seg-btn").forEach(x=>x.classList.remove("active")); b.classList.add("active");
+}));
+
+document.getElementById("optimizeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("optimizeBtn");
+  const capital = parseFloat(document.getElementById("capitalInput").value) || 0;
+  const riskBtn = document.querySelector("#riskSeg .seg-btn.active");
+  const horizonBtn = document.querySelector("#horizonSeg .seg-btn.active");
+  const risk_appetite = riskBtn.dataset.val;
+  const time_horizon = horizonBtn.dataset.val;
+
+  btn.disabled = true; btn.textContent = t("optimizing");
+  log("INFO", tlog("optimizeReq")(fmtToman(capital), risk_appetite, time_horizon));
+
+  try{
+    // Field names must match app.py's OptimizeRequest model exactly.
+    const res = await fetch(`${API_BASE}/api/portfolio/optimize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ capital, risk_appetite, time_horizon }),
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({detail:`HTTP ${res.status}`}));
+      throw new Error(body.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    // Real response shape: { portfolio_weights: {TICKER: fraction, ...}, metrics: {...} }
+    const weights = Object.entries(data.portfolio_weights || {})
+      .map(([symbol, fraction]) => ({ symbol, amount: fraction * capital, fa: true }))
+      .sort((a,b) => b.amount - a.amount);
+    const m = data.metrics || {};
+
+    lastOptimize = { weights, capital };
+    renderDonut(weights, capital);
+    document.getElementById("optKpis").innerHTML = `
+      <div class="opt-kpi"><div class="l">${t("optTotalReturn")}</div><div class="v" style="color:var(--earth-yellow)">${pct(m.total_return)}</div></div>
+      <div class="opt-kpi"><div class="l">${t("optSharpe")}</div><div class="v">${m.sharpe_ratio!=null?m.sharpe_ratio.toFixed(2):"–"}</div></div>
+      <div class="opt-kpi"><div class="l">${t("optMaxDD")}</div><div class="v">${pct(m.max_drawdown)}</div></div>
+      <div class="opt-kpi"><div class="l">${t("optRiskExposure")}</div><div class="v">${pct(m.risk_exposure,0)}</div></div>
+    `;
+    document.getElementById("optimizeResult").classList.add("show");
+    log("OK", tlog("optimizeDone")(weights.length));
+  }catch(err){
+    log("WARN", tlog("optimizeFail")(err.message));
+  }finally{
+    btn.disabled = false; btn.textContent = t("optimizeBtn");
+  }
+});
+
+function renderDonut(weights, capital){
+  const c = chartColors();
+  const COLORS = [c.earth, c.orange, c.taupe, c.delft, hexToRgba(c.earth,.55), hexToRgba(c.orange,.55), hexToRgba(c.taupe,.55)];
+  document.getElementById("weightsList").innerHTML = weights.map((w,i) => `
+    <div class="weight-row">
+      <div class="name"><span class="swatch" style="background:${COLORS[i%COLORS.length]}"></span><span class="${w.fa?'fa':''}">${w.symbol}</span></div>
+      <div class="pct mono">${((w.amount/capital)*100).toFixed(1)}%</div>
+    </div>`).join("");
+
+  const ctx = document.getElementById("donutChart");
+  if(donutChart) donutChart.destroy();
+  donutChart = new Chart(ctx, {
+    type:"doughnut",
+    data:{ labels: weights.map(w=>w.symbol), datasets:[{ data: weights.map(w=>w.amount),
+      backgroundColor: weights.map((_,i)=>COLORS[i%COLORS.length]), borderColor:c.bgCard, borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:"68%",
+      plugins:{ legend:{display:false}, tooltip:{ backgroundColor:c.surface2, titleColor:c.ink, bodyColor:c.ink } } }
+  });
+}
+
+/* ============================= PIPELINE CONTROLS ============================= */
+const runBtn = document.getElementById("runPipelineBtn");
+const predictorBtn = document.getElementById("runPredictorBtn");
+const backtestBtn = document.getElementById("runBacktestBtn");
+const stepEls = [...document.querySelectorAll(".pipeline-step")];
+
+function stampLastRun(){ document.getElementById("lastRunTime").textContent = new Date().toLocaleTimeString("en-GB"); }
+
+// These two buttons re-read whatever's already on disk — they do NOT trigger
+// execution. Use "Run full pipeline" to actually execute main.py.
+predictorBtn.addEventListener("click", async () => {
+  predictorBtn.disabled = true;
+  await apiFetchRankings();
+  stampLastRun();
+  predictorBtn.disabled = false;
+});
+backtestBtn.addEventListener("click", async () => {
+  backtestBtn.disabled = true;
+  await Promise.all([apiFetchEquityCurve(), apiFetchBacktestMetrics()]);
+  stampLastRun();
+  backtestBtn.disabled = false;
+});
+
+runBtn.addEventListener("click", async () => {
+  runBtn.disabled = true;
+  stepEls.forEach(el => el.classList.remove("done","active"));
+  log("INFO", tlog("pipelineStart"));
+
+  // Visual step rail: paced against typical run time, but the actual
+  // completion is driven by the real fetch below, not this timer.
+  const stepLogs = tlog("pipelineSteps") || [t("step0"), t("step1"), t("step2"), t("step3"), t("step4")];
+  let stepTimer = 0;
+  const stepInterval = setInterval(() => {
+    if(stepTimer >= stepEls.length) { clearInterval(stepInterval); return; }
+    stepEls.forEach((el,j)=> el.classList.toggle("active", j===stepTimer));
+    if(stepLogs[stepTimer]) log("INFO", stepLogs[stepTimer]);
+    if(stepTimer>0) stepEls[stepTimer-1].classList.add("done");
+    stepTimer++;
+  }, 4000);
+
+  try{
+    const res = await fetch(`${API_BASE}/api/pipeline/run`, { method:"POST" });
+    const data = await res.json().catch(()=>({}));
+    clearInterval(stepInterval);
+    stepEls.forEach(el => el.classList.remove("active"));
+    stepEls.forEach(el => el.classList.add("done"));
+    if(!res.ok || data.status === "error"){
+      throw new Error(data.stderr_tail ? data.stderr_tail.slice(-300) : `HTTP ${res.status}`);
+    }
+    log("OK", tlog("pipelineDone"));
+    await refreshAllFromBackend();
+  }catch(err){
+    clearInterval(stepInterval);
+    log("WARN", tlog("pipelineFail")(err.message));
+  }finally{
+    setTimeout(()=> stepEls.forEach(el=>el.classList.remove("done")), 1500);
+    runBtn.disabled = false;
+  }
+});
+
+/* ============================= INIT ============================= */
+function renderAll(){
+  renderMarquee(); renderKpis(); renderTable(); renderEquityChart();
+  renderModelHealth(); renderVerdict(); renderGeo();
+  if(lastOptimize) renderDonut(lastOptimize.weights, lastOptimize.capital);
+}
+function tickClock(){ document.getElementById("clock").textContent = new Date().toLocaleTimeString("en-GB"); }
+
+(async function init(){
+  await loadPreferences();
+  applyTheme(currentTheme, {persist:false, rerenderCharts:false});
+  document.documentElement.setAttribute("lang", currentLang);
+  document.documentElement.setAttribute("dir", I18N[currentLang].dir);
+  document.getElementById("langToggleLabel").textContent = currentLang === "en" ? "فا" : "EN";
+  document.getElementById("langToggleBtn").setAttribute("aria-label", t("langSwitchLabel"));
+  document.getElementById("themeToggleBtn").setAttribute("aria-label", currentTheme==="light" ? t("themeToDark") : t("themeToLight"));
+  applyStaticTranslations();
+  renderAll();
+  tickClock(); setInterval(tickClock, 1000);
+
+  log("INFO", tlog("boot"));
+  await apiFetchHealth();
+  await refreshAllFromBackend();
+})();
+
+})();
+</script>
+</body>
+</html>

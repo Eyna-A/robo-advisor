@@ -1,4 +1,4 @@
-<img width="1024" height="302" alt="EynaRobo" src="https://github.com/user-attachments/assets/e6dc5e55-9b8d-4265-b579-b20dbe1c3522" />
+<img width="2048" height="604" alt="EynaRobo2x" src="https://github.com/user-attachments/assets/0d33c9ca-14cd-4428-9b9e-76a21fcdf109" />
 
 
 

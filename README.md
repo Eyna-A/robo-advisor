@@ -1,3 +1,6 @@
+<img width="1200" height="1000" alt="87761283-6265-4753-a01b-f08249935061" src="https://github.com/user-attachments/assets/c28ec7fd-c2f9-4098-ac0a-9d01174e5fca" />
+
+
 # 🇮🇷 TSE Robo-Advisor — AI-Driven Quant Research & Portfolio Pipeline
 
 <div align="center">

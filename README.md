@@ -2,9 +2,9 @@
 
 
 
-# 🇮🇷 TSE Robo-Advisor — AI-Driven Quant Research & Portfolio Pipeline
-
 <div align="center">
+
+# 📡 Signal Desk
 
 ### An end-to-end ML robo-advisor for the Tehran Stock Exchange — built around one rule:<br>never trust a Sharpe ratio you haven't tried to disprove.
 
@@ -13,7 +13,7 @@
 [![LightGBM](https://img.shields.io/badge/LightGBM-ML%20core-9ACD32)](https://lightgbm.readthedocs.io/)
 [![JavaScript](https://img.shields.io/badge/dashboard-vanilla%20JS%2C%20zero%20build-F7DF1E?logo=javascript&logoColor=black)](#-tech-stack)
 [![Status](https://img.shields.io/badge/status-research%20%2F%20not%20production--ready-orange)](#-the-honest-scorecard)
-[![DSR](https://img.shields.io/badge/Deflated%20Sharpe%20Ratio-0.315%20(NO--GO)-red)](#-the-honest-scorecard)
+[![DSR](https://img.shields.io/badge/Deflated%20Sharpe%20Ratio-0.221%20(NO--GO)-red)](#-the-honest-scorecard)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#-contributing)
 

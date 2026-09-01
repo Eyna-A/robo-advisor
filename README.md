@@ -1,7 +1,3 @@
-<img width="2048" height="604" alt="EynaRobo2x" src="https://github.com/user-attachments/assets/0d33c9ca-14cd-4428-9b9e-76a21fcdf109" />
-
-
-
 <div align="center">
 
 # 📡 Signal Desk
@@ -27,15 +23,15 @@
 <br>
 
 > [!WARNING]
-> **This is not financial advice, and the model says so itself.** The latest full backtest reports a **Deflated Sharpe Ratio of 0.315** — below the 0.5 threshold, meaning the strategy's edge is **not statistically distinguishable from luck**. Net stock-picking alpha vs. an equal-weight basket is a genuine **+31.5%**, but macro/dollar timing dragged total returns well behind simply holding USD over the test window. Full numbers in [The Honest Scorecard](#-the-honest-scorecard) below. This project exists to demonstrate rigorous ML engineering, not to manage your money.
+> **This is not financial advice, and the model is the first to admit it.** The latest full backtest reports a **Deflated Sharpe Ratio of 0.221** — below the 0.5 threshold, meaning the strategy's edge is **not statistically distinguishable from luck**. Net stock-picking alpha vs. an equal-weight basket is a genuine **+62.36%** (yes, it went *up* since the last run — see [Numbers Move](#-numbers-move-run-to-run) for why that's not the flex it sounds like), but macro/dollar timing dragged total returns well behind simply holding USD over the test window. Full numbers in [The Honest Scorecard](#-the-honest-scorecard) below. This project exists to demonstrate rigorous ML engineering, not to manage your money — please don't let a good README talk you into the latter.
 
 <br>
 
 ## 🌟 Overview
 
-Most "AI stock picker" repos show you an equity curve, a raw Sharpe ratio, and stop there. That's not enough — a backtest with a good-looking curve can just as easily be the product of trying enough configs until one got lucky (Selection Bias), or a feature that's secretly encoding *which ticker* rather than *which signal*.
+Most "AI stock picker" repos show you an equity curve, a raw Sharpe ratio, and stop there. That's not enough — a backtest with a good-looking curve can just as easily be the product of trying enough configs until one got lucky (Selection Bias), or a feature that's secretly encoding *which ticker* rather than *which signal*. We've been on both sides of that mistake, at 1am, wondering why the model suddenly "discovered alpha." (It hadn't. See bug #1.)
 
-**Signal Desk** is a full pipeline — data ingestion → feature engineering → LightGBM training → backtesting → live inference → portfolio optimization → a live dashboard — purpose-built for a market that punishes naive ML: the **Tehran Stock Exchange (TSE)**. Iranian equities have quirks most trading-bot tutorials never see:
+**Signal Desk** is a full pipeline — data ingestion → feature engineering → LightGBM training → backtesting → live inference → portfolio optimization → a live dashboard — purpose-built for a market that punishes naive ML: the **Tehran Stock Exchange (TSE)**. No GPU required, or even particularly wanted — LightGBM trains the whole thing on a CPU in about the time it takes to make tea. The real difficulty here isn't compute, it's the market itself. Iranian equities have quirks most trading-bot tutorials never see:
 
 | Challenge | Why it breaks naive models |
 |---|---|
@@ -51,20 +47,53 @@ Rather than tune around these until the backtest looks nice, this project builds
 
 ## 📊 The Honest Scorecard
 
-*From the latest full pipeline run — 8 tickers, 1395–1405 (≈10 years), 15,489 labeled rows.*
+*From the latest full pipeline run — 8 tickers, 1395–1405 (≈10 years), 15,687 labeled rows.*
 
 | Metric | Value | Read |
 |---|---|---|
-| **Deflated Sharpe Ratio** | `0.315` | 🔴 **NO-GO** — below the 0.5 "distinguishable from chance" threshold |
-| Alpha vs. equal-weight basket | `+31.48%` | 🟢 Genuine net stock-picking skill |
-| Alpha vs. USD/IRR (buy-and-hold) | `−359.91%` | 🔴 Macro/dollar timing lost badly this window |
-| Total return (strategy) | `+131.68%` | vs. `+491.59%` just holding dollars |
-| Max drawdown | `−31.29%` | — |
-| Sharpe / Sortino / Calmar | `−0.07 / −0.11 / 4.21` | — |
-| Walk-forward fold accuracy | `49.2% – 54.0%` | Baseline (always predict majority class) is `52.4%` |
+| **Deflated Sharpe Ratio** | `0.221` | 🔴 **NO-GO** — below the 0.5 "distinguishable from chance" threshold |
+| Alpha vs. equal-weight basket | `+62.36%` | 🟢 Genuine net stock-picking skill |
+| Alpha vs. USD/IRR (buy-and-hold) | `−500.86%` | 🔴 Macro/dollar timing lost badly this window |
+| Total return (strategy) | `+121.75%` | vs. `+622.62%` just holding dollars |
+| Max drawdown | `−35.10%` | — |
+| Sharpe / Sortino / Calmar | `−0.11 / −0.22 / 3.47` | — |
+| Walk-forward fold accuracy | `46.9% – 54.0%` (6 folds) | Baseline (always predict majority class) is `52.3%` — fold 6 lost to the baseline |
+| Capital-increase adjustments applied | `12` | Corporate actions correctly detected, not mistaken for crashes |
 
 > [!NOTE]
 > Why publish a negative headline result? Because the alternative — reporting only the raw Sharpe or the flattering alpha number — is exactly the kind of selective reporting the Deflated Sharpe Ratio exists to catch. The [full technical report](docs/robo_advisor_report.docx) documents this in detail, including *why* the model is currently closer to a market-timing tool than a stock-picker (see the cross-sectional variance decomposition findings).
+
+### 🔁 Numbers move, run to run
+
+We re-ran the full pipeline with fresh data and, in the spirit of "current results vs. past baselines," here's the honest diff:
+
+| Metric | Earlier run | Latest run | What happened |
+|---|---|---|---|
+| Deflated Sharpe Ratio | 0.315 | **0.221** | 🔻 Further into NO-GO. Yes, that's possible. |
+| Alpha vs. equal-weight | +31.48% | **+62.36%** | 🔺 Looks great in isolation — see below for why it isn't the whole story |
+| Sharpe / Sortino / Calmar | −0.07 / −0.11 / 4.21 | −0.11 / −0.22 / 3.47 | 🔻 Mildly worse across the board |
+| Max drawdown | −31.29% | −35.10% | 🔻 A rougher ride |
+| Training rows | 15,489 | 15,687 | 🔺 The dataset keeps growing, at least |
+
+This is the punchline of the whole DSR exercise, actually: raw alpha went **up** while statistical confidence went **down**. That's not a contradiction — DSR also penalizes return-distribution skew and kurtosis, not just the average. A noisier realization of a bigger number can look *less* convincing than a calmer realization of a smaller one. If your instinct is "the alpha improved, ship it," this table is exactly the instinct DSR was invented to catch you on.
+
+> [!TIP]
+> The Deflated Sharpe Ratio also depends on `num_strategy_trials` — how many configs you've honestly tried. This repo currently hardcodes `num_strategy_trials=1` in `backtester.py`, which is generous: across this project's actual history (label redefinition, annualization fixes, threshold tuning...) far more than one config has been tried. Counted honestly, the real DSR is likely *lower* than what's shown above, not higher. Automating that count is on the [Roadmap](#-roadmap).
+
+### ⚡ API Latency
+
+Real numbers from [`benchmark_api.py`](benchmark_api.py) (50 sequential requests per endpoint, 5-request warm-up excluded):
+
+| Endpoint | Median | p95 | Status |
+|---|---|---|---|
+| `GET /api/health` | 15.5ms | 16.7ms | ✅ |
+| `GET /api/backtest-metrics` | 9.6ms | 16.4ms | ✅ |
+| `GET /api/model-health` | 4.9ms | 5.3ms | ✅ (yes, faster than health — no LightGBM reload race this time) |
+| `GET /api/rankings` | — | — | ⏳ Was mid-bug-hunt during this run (see bug #15) — fixed, not yet re-benchmarked |
+| `GET /api/equity-curve` | — | — | ⏳ Same |
+| `POST /api/portfolio/optimize` | — | — | ⏳ Same |
+
+Half a benchmark table is still an honest benchmark table. We'd rather ship three real numbers than six made-up ones.
 
 <br>
 

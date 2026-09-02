@@ -1,6 +1,7 @@
 <div align="center">
 
-# 📡 Signal Desk
+<img width="2172" height="724" alt="4d49a68a-e41e-406b-a89b-8b04bbb613b7" src="https://github.com/user-attachments/assets/aca9eb87-2955-4a8b-a93c-f8f159cfe1e3" />
+
 
 ### An end-to-end ML robo-advisor for the Tehran Stock Exchange — built around one rule:<br>never trust a Sharpe ratio you haven't tried to disprove.
 
@@ -336,7 +337,7 @@ Issues and PRs are genuinely welcome — especially around the open items above.
 
 ## 🙏 Author
 
-**Eina Shabani** — B.Sc. Computer Science, Islamic Azad University, Tehran West Branch<br>
+**Eyna Shabani** — B.Sc. Computer Science, Islamic Azad University, Tehran West Branch<br>
 Full academic writeup (methodology, math, and every diagnostic result): [`docs/robo_advisor_report.docx`](docs/robo_advisor_report.docx)
 
 <div align="center">

@@ -1,0 +1,48 @@
+*.csv
+*.json
+__pycache__/
+.env
+
+.venv/
+venv/
+
+# Python & Virtual Environment
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Environment variables & Security
+.env
+.env.*
+
+# Large Datasets & Feature Files
+ai_features_outputs/
+*.csv
+*.parquet
+*.xlsx
+
+# Model Weights & Binary Artifacts
+ai_models/
+*.pkl
+*.bin
+*.onnx
+*.pt
+*.h5
+
+# Project Outputs & Logs
+excel_outputs/
+*.log
+logs/
+
+# IDE & Operating System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Data & JSON files
+*.csv
+*.json
